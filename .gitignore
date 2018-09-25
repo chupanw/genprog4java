@@ -18,3 +18,10 @@ buildNumber.properties
 
 # IntelliJ
 .idea/
+
+# Byproduct of GenProg
+coverage.path.neg
+coverage.path.pos
+jacoco.exec
+testcache.ser
+FaultyStmtsAndWeights.txt
