@@ -3,6 +3,7 @@ package clegoues.genprog4java.Search;
 import clegoues.genprog4java.fitness.Fitness;
 import clegoues.genprog4java.mut.EditOperation;
 import clegoues.genprog4java.rep.JavaRepresentation;
+import clegoues.genprog4java.rep.MergedRepresentation;
 import clegoues.genprog4java.rep.Representation;
 
 public class GeneticProgramming<G extends EditOperation> extends Search<G>{
@@ -49,6 +50,10 @@ public class GeneticProgramming<G extends EditOperation> extends Search<G>{
 			this.mutate(newItem);
 			initialPopulation.add(newItem);
 		}
+
+        MergedRepresentation merged = MergedRepresentation.merge(initialPopulation);
+		initialPopulation.removeLast();
+		initialPopulation.add((Representation) merged);
 
 		for (Representation<G> item : initialPopulation) {
 			if (fitnessEngine.testFitness(0, item)) {

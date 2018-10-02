@@ -416,6 +416,10 @@ public class Population<G extends EditOperation> implements Iterable<Representat
 
 	}
 
+	public void removeLast() {
+		population.remove(population.size() - 1);
+	}
+
 
 
 }
