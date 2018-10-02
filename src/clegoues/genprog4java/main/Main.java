@@ -83,6 +83,15 @@ public class Main {
 		Configuration.saveOrLoadTargetFiles();
 		ConfigurationBuilder.storeProperties();
 
+        if (Configuration.cleanUpVariants) {
+            logger.info("Removing all variants in " + Configuration.outputDir);
+            File outputDir = new File(Configuration.outputDir);	// outputDir and workDir are actually different
+            String failed = deleteVariants(outputDir);
+            if (!failed.equals("")) {
+                logger.error("failed to delete " + failed);
+            }
+        }
+
 		File workDir = new File(Configuration.outputDir);
 		if (!workDir.exists())
 			workDir.mkdir();
@@ -120,5 +129,27 @@ public class Main {
 
 	private static int getElapsedTime(long start) {
 		return (int) (System.currentTimeMillis() - start) / 1000;
+	}
+
+	private static String deleteVariants(File f) {
+        assert f.isDirectory() : "Failed to delete " + f + "because it's not a directory";
+        File[] files = f.listFiles();
+        for (int i = 0; i < files.length; i++) {
+            File x = files[i];
+            if (x.isDirectory() && x.getName().startsWith("variant")) {
+                boolean success = deleteFolder(x);
+                if (!success) return x.getName();
+            }
+        }
+        return "";
+    }
+
+	private static boolean deleteFolder(File f) {
+		assert f.isDirectory() : "Failed to delete " + f + "because it's not a directory";
+        File[] files = f.listFiles();
+        for (int i = 0; i < files.length; i++) {
+            if (!files[i].delete()) deleteFolder(files[i]);
+        }
+        return f.delete();
 	}
 }

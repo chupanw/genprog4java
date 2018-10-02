@@ -185,6 +185,11 @@ public class Configuration {
 		.withDefault( "" )
 		.withHelp( "command for compiling the program" )
 		.build();
+	public static Boolean cleanUpVariants = ConfigurationBuilder.of( BOOL_ARG )
+			.withVarName("cleanUpVariants")
+			.withDefault("true")
+			.withHelp("whether to clean up the output dir before execution")
+			.build();
 
 	private Configuration() {}
 
