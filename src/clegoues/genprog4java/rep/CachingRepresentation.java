@@ -213,6 +213,7 @@ Representation<G>  {
 			if (!this.compile(newName, newName)) {
 				this.setFitness(0.0);
 				logger.info(this.getName() + " at " + newName + " fails to compile\n");
+				canCompile = false;
 				FitnessValue compileFail = new FitnessValue();
 				compileFail.setTestClassName(test.getTestName());
 				compileFail.setAllPassed(false);

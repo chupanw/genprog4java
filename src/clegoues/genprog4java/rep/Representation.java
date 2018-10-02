@@ -74,6 +74,8 @@ Comparable<Representation<G>> {
 
 	protected String variantFolder = "";
 
+	boolean canCompile = true;
+
 	public Representation() {
 	}
 
