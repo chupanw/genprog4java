@@ -134,7 +134,7 @@ CachingRepresentation<JavaEditOperation> {
 	public static final ConfigurationBuilder.RegistryToken token =
 			ConfigurationBuilder.getToken();
 
-	private JavaSourceInfo sourceInfo = new JavaSourceInfo();
+	protected JavaSourceInfo sourceInfo = new JavaSourceInfo();
 	public static JavaSemanticInfo semanticInfo = new JavaSemanticInfo();
 
 	public static int stmtCounter = 0;
