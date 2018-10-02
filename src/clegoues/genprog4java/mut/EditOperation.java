@@ -44,5 +44,7 @@ public interface EditOperation<R> {
 	public void setHoleCode(EditHole target);
 
 	public void edit(R rewriter);
+
+	default void mergeEdit(R rewriter){}
 	
 }
