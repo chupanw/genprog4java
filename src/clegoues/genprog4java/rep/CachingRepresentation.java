@@ -213,7 +213,6 @@ Representation<G>  {
 			if (!this.compile(newName, newName)) {
 				this.setFitness(0.0);
 				logger.info(this.getName() + " at " + newName + " fails to compile\n");
-				canCompile = false;
 				FitnessValue compileFail = new FitnessValue();
 				compileFail.setTestClassName(test.getTestName());
 				compileFail.setAllPassed(false);
@@ -343,12 +342,13 @@ Representation<G>  {
 	public boolean compile(String sourceName, String exeName) {
 
 		if (this.alreadyCompiled != null) {
-			return alreadyCompiled.getLeft();
+		    canCompile = alreadyCompiled.getLeft();
 		} else {
 			boolean result = this.internalCompile(sourceName, exeName);
 			this.alreadyCompiled =  Pair.of(result, exeName);
-			return result;
+			canCompile = result;
 		}
+		return canCompile;
 	}
 
 	protected abstract boolean internalCompile(String sourceName, String exeName);

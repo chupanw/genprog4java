@@ -51,8 +51,8 @@ public class GeneticProgramming<G extends EditOperation> extends Search<G>{
 			initialPopulation.add(newItem);
 		}
 
+        initialPopulation.removeLast();
         MergedRepresentation merged = MergedRepresentation.merge(initialPopulation);
-		initialPopulation.removeLast();
 		initialPopulation.add((Representation) merged);
 
 		for (Representation<G> item : initialPopulation) {
