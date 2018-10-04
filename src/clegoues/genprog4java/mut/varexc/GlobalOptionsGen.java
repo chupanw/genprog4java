@@ -17,7 +17,7 @@ public class GlobalOptionsGen {
     // non-exclusive
     private static int endID = 0;
 
-    private final static String prefix = "__change__";
+    private final static String prefix = "c";
 
     public static String getNext() {
         endID++;
