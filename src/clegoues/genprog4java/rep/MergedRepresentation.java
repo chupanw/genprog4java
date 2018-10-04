@@ -8,6 +8,7 @@ import clegoues.genprog4java.mut.holes.java.JavaLocation;
 import clegoues.genprog4java.mut.varexc.GlobalOptionsGen;
 import org.apache.commons.lang3.tuple.Pair;
 import org.eclipse.jdt.core.dom.AST;
+import org.eclipse.jdt.core.dom.ASTNode;
 import org.eclipse.jdt.core.dom.CompilationUnit;
 import org.eclipse.jdt.core.dom.rewrite.ASTRewrite;
 import org.eclipse.jface.text.BadLocationException;
@@ -27,6 +28,7 @@ import java.util.*;
 public class MergedRepresentation extends JavaRepresentation {
 
     private LinkedList<JavaRepresentation> composed = new LinkedList<>();
+    private HashMap<ASTNode, ASTNode> nodeStore = new HashMap<>();
     private HashSet<EditOperation> compilableEdits = null;
 
     private MergedRepresentation(){}
@@ -48,6 +50,7 @@ public class MergedRepresentation extends JavaRepresentation {
 
     @Override
     protected ArrayList<Pair<ClassInfo, String>> internalComputeSourceBuffers() {
+        sortGenome();
         collectCompilableEdits();
         ArrayList<Pair<ClassInfo, String>> retVal = new ArrayList<Pair<ClassInfo, String>>();
         for (Map.Entry<ClassInfo, String> pair : sourceInfo.getOriginalSource().entrySet()) {
@@ -65,11 +68,9 @@ public class MergedRepresentation extends JavaRepresentation {
                 for (JavaEditOperation edit : this.getGenome()) {
                     JavaLocation locationStatement = (JavaLocation) edit.getLocation();
                     if(compilableEdits.contains(edit) && locationStatement.getClassInfo()!=null && locationStatement.getClassInfo().getClassName().equalsIgnoreCase(filename) && locationStatement.getClassInfo().getPackage().equalsIgnoreCase(path)){
-                        edit.mergeEdit(rewriter);
+                        edit.mergeEdit(rewriter, nodeStore);
                     }
                 }
-                // todo: we need additional checking to ensure changes are at different locations
-
                 TextEdit edits = rewriter.rewriteAST(original, null);
                 edits.apply(original);
             } catch (IllegalArgumentException e) {
@@ -104,5 +105,9 @@ public class MergedRepresentation extends JavaRepresentation {
                 }
             }
         }
+    }
+
+    private void sortGenome() {
+        this.getGenome().sort(Comparator.comparingInt(o -> o.getLocation().getId()));
     }
 }

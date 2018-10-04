@@ -1,13 +1,11 @@
 package clegoues.genprog4java.mut.edits.java;
 
-import org.eclipse.jdt.core.dom.ASTNode;
-import org.eclipse.jdt.core.dom.Block;
+import org.eclipse.jdt.core.dom.*;
 import org.eclipse.jdt.core.dom.rewrite.ASTRewrite;
-import org.eclipse.text.edits.TextEdit;
 
-import clegoues.genprog4java.mut.Mutation;
 import clegoues.genprog4java.mut.holes.java.JavaLocation;
-import clegoues.genprog4java.mut.holes.java.StatementHole;
+
+import java.util.HashMap;
 
 public class JavaDeleteOperation extends JavaEditOperation {
 	
@@ -26,7 +24,30 @@ public class JavaDeleteOperation extends JavaEditOperation {
 	        
 			
 	}
-	
+
+	@Override
+	public void mergeEdit(ASTRewrite rewriter, HashMap<ASTNode, ASTNode> nodeStore) {
+		ASTNode locationNode = ((JavaLocation) this.getLocation()).getCodeElement();
+
+		ASTNode originalCodeNode = ASTNode.copySubtree(rewriter.getAST(), locationNode);
+
+		Block newBlock = (Block) rewriter.getAST().createInstance(Block.class);
+		IfStatement ife = newBlock.getAST().newIfStatement();
+
+		// condition
+		Expression cond = getNextFieldAccessNot(ife);
+		// then block
+		Block thenBlock = ife.getAST().newBlock();
+		thenBlock.statements().add(originalCodeNode);
+
+		ife.setExpression(cond);
+		ife.setThenStatement(thenBlock);
+		newBlock.statements().add(ife);
+
+		/* Replace the faulty statement with the empty Block. */
+        applyEditAndUpdateNodeStore(rewriter, newBlock, nodeStore, locationNode, originalCodeNode);
+	}
+
 	@Override
 	public String toString() {
 		return "StmtDelete(" + this.getLocation().getId() + ")";
