@@ -88,31 +88,31 @@ public interface EditOperation<R> {
 		rewriter.replace(toBeReplaced, astReplacement, null);
 
 		nodeStore.put(originalLocationNode, newLocationNode);
-		ArrayList<Statement> originChildren = getChildrenStatements(originalLocationNode);
-		ArrayList<Statement> newChildren = getChildrenStatements(newLocationNode);
-		for (Statement s : originChildren) {
-		    Statement ss = newChildren.get(originChildren.indexOf(s));
-		    assert s.toString().equals(ss.toString());
+		ArrayList<ASTNode> originChildren = getChildrenStatementsOrExpressions(originalLocationNode);
+		ArrayList<ASTNode> newChildren = getChildrenStatementsOrExpressions(newLocationNode);
+		for (ASTNode s : originChildren) {
+		    ASTNode ss = newChildren.get(originChildren.indexOf(s));
+		    assert s.toString().equals(ss.toString()) : s.toString() + " not equal to " + ss.toString();
 			nodeStore.put(s, ss);
 		}
 	}
 
-	default ArrayList<Statement> getChildrenStatements(ASTNode node) {
-		ArrayList<Statement> res = new ArrayList<>();
+	default ArrayList<ASTNode> getChildrenStatementsOrExpressions(ASTNode node) {
+		ArrayList<ASTNode> res = new ArrayList<>();
 		List list= node.structuralPropertiesForType();
 		for (Object aList : list) {
 			StructuralPropertyDescriptor curr = (StructuralPropertyDescriptor) aList;
 			Object child = node.getStructuralProperty(curr);
 			if (child instanceof List) {
 				for (ASTNode n : (List<ASTNode>) child) {
-					if (n instanceof Statement) {
-						res.add((Statement) n);
-						res.addAll(getChildrenStatements(n));
+					if (n instanceof Statement || n instanceof Expression) {
+						res.add(n);
+						res.addAll(getChildrenStatementsOrExpressions(n));
 					}
 				}
-			} else if (child instanceof Statement) {
-				res.add((Statement) child);
-				res.addAll(getChildrenStatements((ASTNode) child));
+			} else if (child instanceof Statement || child instanceof Expression) {
+				res.add((ASTNode) child);
+				res.addAll(getChildrenStatementsOrExpressions((ASTNode) child));
 			}
 		}
 		return res;
