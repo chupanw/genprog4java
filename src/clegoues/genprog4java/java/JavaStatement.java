@@ -34,13 +34,7 @@
 package clegoues.genprog4java.java;
 
 import java.lang.reflect.Modifier;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 import org.eclipse.jdt.core.dom.ASTMatcher;
 import org.eclipse.jdt.core.dom.ASTNode;
@@ -380,6 +374,18 @@ public class JavaStatement implements Comparable<JavaStatement>{
 		}
 		return extendableExpressions;
 
+	}
+
+	private Set<Expression> relationalExpressions = null;
+
+	public Set<Expression> getRelationalExpressions() {
+		if (relationalExpressions != null) {
+			return relationalExpressions;
+		} else {
+			relationalExpressions = new HashSet<>();
+			this.getASTNode().accept(new CollectRelationalExpression(relationalExpressions));
+			return relationalExpressions;
+		}
 	}
 
 	private Map<Expression,List<Expression>> methodParamReplacements = null;

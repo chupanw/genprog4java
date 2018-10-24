@@ -193,6 +193,7 @@ public abstract class Search<G extends EditOperation> {
 			case "seqexch":  mutations.add( new WeightedMutation(Mutation.SEQEXCH, weight)); break;
 			case "castermut":  mutations.add(new WeightedMutation(Mutation.CASTERMUT, weight)); break;
 			case "casteemut":  mutations.add(new WeightedMutation(Mutation.CASTEEMUT, weight)); break;
+            case "boundswitch": mutations.add(new WeightedMutation(Mutation.BOUNDSWITCH, weight)); break;
 
 			}
 		}

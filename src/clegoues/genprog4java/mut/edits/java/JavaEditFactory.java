@@ -1,12 +1,7 @@
 package clegoues.genprog4java.mut.edits.java;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 import java.util.Map.Entry;
-import java.util.Set;
 
 import org.apache.log4j.Logger;
 import org.eclipse.jdt.core.dom.ASTNode;
@@ -90,6 +85,8 @@ public class JavaEditFactory {
 			return new CasterMutator((JavaLocation) dst, sources);
 		case CASTEEMUT:
 			return new CasteeMutator((JavaLocation) dst, sources);
+        case BOUNDSWITCH:
+			return new BoundarySwitcher((JavaLocation) dst, sources);
 		}
 		return null;
 	}
@@ -218,10 +215,10 @@ public class JavaEditFactory {
 		{
 			List<WeightedHole> retVal = new LinkedList<WeightedHole>();
 			StatementHole stmtHole = new StatementHole((Statement) locationStmt.getASTNode(), locationStmt.getStmtId());
-			retVal.add(new WeightedHole(stmtHole)); // deletion has no special weight  
+			retVal.add(new WeightedHole(stmtHole)); // deletion has no special weight
 			return retVal;
 		}
-		case APPEND: 	
+		case APPEND:
 		case REPLACE:
 		{
 			List<WeightedHole> retVal = new LinkedList<WeightedHole>();
@@ -241,7 +238,7 @@ public class JavaEditFactory {
 				int atom = item.getAtom();
 				List<WeightedAtom> inScopeThere = this.scopeHelper(variant.instantiateLocation(atom, item.getRight()), variant, editType);
 				for (WeightedAtom there : inScopeThere) {
-					if (there.getAtom() != location.getId()) { 
+					if (there.getAtom() != location.getId()) {
 						JavaStatement potentialFixStmt = variant.getFromCodeBank(there.getAtom());
 						ASTNode fixAST = potentialFixStmt.getASTNode();
 						StatementHole stmtHole = new StatementHole((Statement) fixAST, potentialFixStmt.getStmtId());
@@ -255,14 +252,14 @@ public class JavaEditFactory {
 		case LBOUNDSET:
 		case UBOUNDSET:
 		case RANGECHECK:
-		case OFFBYONE:  
-			return JavaHole.makeSubExpsHoles(locationStmt.getArrayAccesses()); 
+		case OFFBYONE:
+			return JavaHole.makeSubExpsHoles(locationStmt.getArrayAccesses());
 		case NULLCHECK:
 			return JavaHole.makeSubExpsHoles(locationStmt.getNullCheckables());
 		case CASTCHECK:
 			return JavaHole.makeSubExpsHoles(locationStmt.getCasts());
 		case FUNREP:
-		{			
+		{
 			List<WeightedHole> retVal = new LinkedList<WeightedHole>();
 			Map<ASTNode, List<IMethodBinding>> methodReplacements = locationStmt.getCandidateMethodReplacements();
 			for(Map.Entry<ASTNode,List<IMethodBinding>> entry : methodReplacements.entrySet()) {
@@ -314,7 +311,7 @@ public class JavaEditFactory {
 		{
 			List<WeightedHole> retVal = new LinkedList<WeightedHole>();
 			Map<Expression, List<Expression>> extendableExpressions = locationStmt.getExtendableConditionalExpressions();
-			for(Entry<Expression, List<Expression>> entries : extendableExpressions.entrySet()) { 
+			for(Entry<Expression, List<Expression>> entries : extendableExpressions.entrySet()) {
 				Expression parentExp = entries.getKey();
 				int parentExpLoc = ASTUtils.getLineNumber(parentExp);
 				for(Expression exp : entries.getValue()) {
@@ -334,7 +331,7 @@ public class JavaEditFactory {
 			List<WeightedHole> retVal = new LinkedList<WeightedHole>();
 			Map<Expression, List<Expression>> shrinkableExpressions = locationStmt.getShrinkableConditionalExpressions();
 			for(Entry<Expression, List<Expression>> entries : shrinkableExpressions.entrySet()) {
-				for(Expression exp : entries.getValue()) { 
+				for(Expression exp : entries.getValue()) {
 					EditHole shrinkableExpHole1 = new ExpChoiceHole(exp, exp, locationStmt.getStmtId(), 0);
 					EditHole shrinkableExpHole2 = new ExpChoiceHole(exp, exp, locationStmt.getStmtId(), 1);
 					retVal.add(new WeightedHole(shrinkableExpHole1));
@@ -396,7 +393,7 @@ public class JavaEditFactory {
 				}
 				EditHole newHole = new SubExpsHole(casterObject, toReplaceForCasters);
 				retVal.add(new WeightedHole(newHole));
-				
+
 			}
 			return retVal;
 		}
@@ -412,6 +409,15 @@ public class JavaEditFactory {
 						retVal.add(new WeightedHole(newHole));
 					}
 				}
+			}
+			return retVal;
+		}
+        case BOUNDSWITCH: {
+			List<WeightedHole> retVal = new LinkedList<>();
+			Set<Expression> relationalExprs = locationStmt.getRelationalExpressions();
+			for (Expression e : relationalExprs) {
+				ExpHole hole = new ExpHole(e, e, locationStmt.getStmtId());
+				retVal.add(new WeightedHole(hole));
 			}
 			return retVal;
 		}
@@ -482,6 +488,8 @@ public class JavaEditFactory {
 			return locationStmt.getCasterTypes().size() > 0;
 		case CASTEEMUT:
 			return locationStmt.getCasteeExpressions().size() > 0;
+        case BOUNDSWITCH:
+        	return locationStmt.getRelationalExpressions().size() > 0;
 		}
 		return false;
 	}
