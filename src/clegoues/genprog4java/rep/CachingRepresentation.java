@@ -295,20 +295,25 @@ Representation<G>  {
 		executor.setWatchdog(watchdog);
 
 		ByteArrayOutputStream out = new ByteArrayOutputStream();
+		ByteArrayOutputStream errOut = new ByteArrayOutputStream();
 		executor.setExitValue(0);
 
-		executor.setStreamHandler(new PumpStreamHandler(out));
+		executor.setStreamHandler(new PumpStreamHandler(out, errOut));
 		FitnessValue posFit = new FitnessValue();
 
 		try {
 			executor.execute(command);
 			out.flush();
+			errOut.flush();
 			String output = out.toString();
 			out.reset();
+			errOut.reset();
 			posFit = CachingRepresentation.parseTestResults(
 					thisTest.getTestName(), output);
 
 		} catch (ExecuteException exception) {
+			String errOutput = errOut.toString();
+			System.err.println("Error executing test case: " + errOutput);
 			posFit.setAllPassed(false);
 		} catch (Exception e) {
 		} finally {
