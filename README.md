@@ -14,6 +14,8 @@ This is a java-based version of GenProg, software for automatically fixing bugs.
 
 ### Running GenProg4J ###
 
+You need JDK8. Newer or older versions do NOT work because of dependencies like Jacoco.
+
 At a high level, GenProg takes as input a program with a bug and test cases.  At
 least one test case should be failing; it encodes the bug to be repaired.  At
 least one should be passing; it encodes desired functionality that should be

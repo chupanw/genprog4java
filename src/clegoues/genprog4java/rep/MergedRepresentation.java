@@ -3,9 +3,10 @@ package clegoues.genprog4java.rep;
 import clegoues.genprog4java.Search.Population;
 import clegoues.genprog4java.java.ClassInfo;
 import clegoues.genprog4java.mut.EditOperation;
+import clegoues.genprog4java.mut.MethodCutter;
 import clegoues.genprog4java.mut.edits.java.JavaEditOperation;
 import clegoues.genprog4java.mut.holes.java.JavaLocation;
-import clegoues.genprog4java.mut.varexc.GlobalOptionsGen;
+import clegoues.genprog4java.mut.varexc.VarexCGlobal;
 import org.apache.commons.lang3.tuple.Pair;
 import org.eclipse.jdt.core.dom.AST;
 import org.eclipse.jdt.core.dom.ASTNode;
@@ -62,7 +63,7 @@ public class MergedRepresentation extends JavaRepresentation {
             CompilationUnit cu = sourceInfo.getBaseCompilationUnits().get(ci);
             AST ast = cu.getAST();
             ASTRewrite rewriter = ASTRewrite.create(ast);
-            GlobalOptionsGen.addImportGlobalOptions(cu, rewriter);
+            VarexCGlobal.addImportGlobalOptions(cu, rewriter);
 
             try {
                 for (JavaEditOperation edit : this.getGenome()) {
@@ -73,6 +74,9 @@ public class MergedRepresentation extends JavaRepresentation {
                 }
                 TextEdit edits = rewriter.rewriteAST(original, null);
                 edits.apply(original);
+//                MethodCutter mc = new MethodCutter(original, 65535);
+                MethodCutter mc = new MethodCutter(original, 30000);
+                mc.applyCutEdits();
             } catch (IllegalArgumentException e) {
                 e.printStackTrace();
                 return null;
@@ -92,7 +96,7 @@ public class MergedRepresentation extends JavaRepresentation {
 
             retVal.add(Pair.of(ci, original.get()));
         }
-        retVal.add(Pair.of(new ClassInfo("GlobalOptions", "varexc"), GlobalOptionsGen.getCodeAsString()));
+        retVal.add(Pair.of(new ClassInfo("GlobalOptions", "varexc"), VarexCGlobal.getCodeAsString()));
         return retVal;
     }
 

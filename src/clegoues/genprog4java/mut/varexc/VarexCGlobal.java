@@ -1,9 +1,6 @@
 package clegoues.genprog4java.mut.varexc;
 
-import org.eclipse.jdt.core.dom.AST;
-import org.eclipse.jdt.core.dom.CompilationUnit;
-import org.eclipse.jdt.core.dom.ImportDeclaration;
-import org.eclipse.jdt.core.dom.TypeDeclaration;
+import org.eclipse.jdt.core.dom.*;
 import org.eclipse.jdt.core.dom.rewrite.ASTRewrite;
 import org.eclipse.jdt.core.dom.rewrite.ITrackedNodePosition;
 import org.eclipse.jdt.core.dom.rewrite.ListRewrite;
@@ -11,11 +8,13 @@ import org.eclipse.jdt.core.dom.rewrite.ListRewrite;
 /**
  * Generate a class that contains all boolean options
  */
-public class GlobalOptionsGen {
+public class VarexCGlobal {
     // inclusive
     private static int startID = 0;
     // non-exclusive
     private static int endID = 0;
+
+    private static int methodCnt = 0;
 
     private final static String prefix = "c";
 
@@ -24,6 +23,9 @@ public class GlobalOptionsGen {
         return prefix + (endID - 1);
     }
 
+    public static int getNextMethodID() {
+        return methodCnt++;
+    }
     public static void resetStartingIndex() {
         startID = endID;
     }

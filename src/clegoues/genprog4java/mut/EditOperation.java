@@ -34,9 +34,10 @@
 package clegoues.genprog4java.mut;
 
 import clegoues.genprog4java.localization.Location;
-import clegoues.genprog4java.mut.varexc.GlobalOptionsGen;
+import clegoues.genprog4java.mut.varexc.VarexCGlobal;
 import org.eclipse.jdt.core.dom.*;
 import org.eclipse.jdt.core.dom.rewrite.ASTRewrite;
+import org.eclipse.jdt.core.dom.rewrite.ListRewrite;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -56,7 +57,7 @@ public interface EditOperation<R> {
 
 	default Expression getNextFieldAccess(ASTNode parent) {
 		// condition
-		String f = GlobalOptionsGen.getNext();
+		String f = VarexCGlobal.getNext();
 		FieldAccess fa = parent.getAST().newFieldAccess();
 		fa.setExpression(fa.getAST().newQualifiedName(fa.getAST().newSimpleName("varexc"), fa.getAST().newSimpleName("GlobalOptions")));
 		fa.setName(fa.getAST().newSimpleName(f));
@@ -65,7 +66,7 @@ public interface EditOperation<R> {
 
 	default Expression getNextFieldAccessNot(ASTNode parent) {
 		// condition
-		String f = GlobalOptionsGen.getNext();
+		String f = VarexCGlobal.getNext();
 		FieldAccess fa = parent.getAST().newFieldAccess();
 		fa.setExpression(fa.getAST().newQualifiedName(fa.getAST().newSimpleName("varexc"), fa.getAST().newSimpleName("GlobalOptions")));
 		fa.setName(fa.getAST().newSimpleName(f));

@@ -3,16 +3,16 @@ package clegoues.genprog4java.mut.edits.java;
 import clegoues.genprog4java.mut.EditHole;
 import clegoues.genprog4java.mut.holes.java.ExpHole;
 import clegoues.genprog4java.mut.holes.java.JavaLocation;
-import org.eclipse.jdt.core.dom.ASTNode;
-import org.eclipse.jdt.core.dom.ConditionalExpression;
-import org.eclipse.jdt.core.dom.Expression;
-import org.eclipse.jdt.core.dom.InfixExpression;
+import clegoues.genprog4java.mut.varexc.VarexCGlobal;
+import org.eclipse.jdt.core.dom.*;
 import org.eclipse.jdt.core.dom.rewrite.ASTRewrite;
 
 import java.util.HashMap;
 
 /**
  * Replace relational operators with their boundary counterpart
+ *
+ * See Conditionals Boundary Mutator from PIT
  *
  *  >  to >=
  *  >= to >
@@ -36,6 +36,10 @@ public class BoundarySwitcher extends JavaEditOperation {
 
     @Override
     public void mergeEdit(ASTRewrite rewriter, HashMap<ASTNode, ASTNode> nodeStore) {
+        editAsTernary(rewriter, nodeStore);
+    }
+
+    private void editAsTernary(ASTRewrite rewriter, HashMap<ASTNode, ASTNode> nodeStore) {
         InfixExpression locationExprCopy = (InfixExpression) ASTNode.copySubtree(rewriter.getAST(), locationExpr);
 
         ConditionalExpression ife = rewriter.getAST().newConditionalExpression();
