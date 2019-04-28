@@ -6,6 +6,7 @@ import org.eclipse.jdt.core.dom.rewrite.ASTRewrite;
 import clegoues.genprog4java.mut.holes.java.StatementHole;
 import clegoues.genprog4java.mut.holes.java.JavaLocation;
 import clegoues.genprog4java.mut.EditHole;
+import org.eclipse.jdt.core.dom.rewrite.ListRewrite;
 
 import java.util.HashMap;
 
@@ -45,30 +46,40 @@ public class JavaAppendOperation extends JavaEditOperation {
 
 		ASTNode fixCodeNode = ASTNode.copySubtree(rewriter.getAST(), fixHole.getCode());
 
-		Block newBlock = locationNode.getAST().newBlock();
 		if(locationNode instanceof Statement && fixCodeNode instanceof Statement){
-			ASTNode stm1 = (Statement)locationNode;
-			ASTNode stm2 = (Statement)fixCodeNode;
+		    if (locationNode.getParent() instanceof Block) {
+		    	IfStatement ife = rewriter.getAST().newIfStatement();
+		    	ife.setExpression(getNextFieldAccess(ife));
+		    	ife.setThenStatement((Statement) ASTNode.copySubtree(rewriter.getAST(), fixCodeNode));
+		    	Block surrounding = (Block) locationNode.getParent();
+				ListRewrite lw = rewriter.getListRewrite(surrounding, Block.STATEMENTS_PROPERTY);
+				lw.insertAfter(ife, locationNode, null);
+			}
+		    else {
+				Block newBlock = locationNode.getAST().newBlock();
+				ASTNode stm1 = (Statement)locationNode;
+				ASTNode stm2 = (Statement)fixCodeNode;
 
-			stm1 = ASTNode.copySubtree(locationNode.getAST(), stm1);
-			stm2 = ASTNode.copySubtree(fixCodeNode.getAST(), stm2);
+				stm1 = ASTNode.copySubtree(locationNode.getAST(), stm1);
+				stm2 = ASTNode.copySubtree(fixCodeNode.getAST(), stm2);
 
-			IfStatement ife = newBlock.getAST().newIfStatement();
+				IfStatement ife = newBlock.getAST().newIfStatement();
 
-			// condition
-			Expression fa = getNextFieldAccess(ife);
-			// then block
-			Block thenBlock = ife.getAST().newBlock();
-			thenBlock.statements().add(stm2);
+				// condition
+				Expression fa = getNextFieldAccess(ife);
+				// then block
+				Block thenBlock = ife.getAST().newBlock();
+				thenBlock.statements().add(stm2);
 
-			ife.setExpression(fa);
-			ife.setThenStatement(thenBlock);
+				ife.setExpression(fa);
+				ife.setThenStatement(thenBlock);
 
 
-			newBlock.statements().add(stm1);
-			newBlock.statements().add(ife);
+				newBlock.statements().add(stm1);
+				newBlock.statements().add(ife);
 
-            applyEditAndUpdateNodeStore(rewriter, newBlock, nodeStore, locationNode, stm1);
+				applyEditAndUpdateNodeStore(rewriter, newBlock, nodeStore, locationNode, stm1);
+			}
 		}
 	}
 

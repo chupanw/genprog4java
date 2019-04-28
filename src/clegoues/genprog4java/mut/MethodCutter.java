@@ -68,10 +68,10 @@ public class MethodCutter {
     }
 
     private void processMethod(MethodDeclaration methodDecl, boolean isExisting, TypeDeclaration classDecl) {
-        if (isMethodTooBig(methodDecl)) {
+        List<Statement> statements = methodDecl.getBody().statements();
+        Statement cp = findCutPoint(statements);
+        if (cp != null) {
             logger.info("Cutting " + classDecl.getName() + "." + methodDecl.getName());
-            List<Statement> statements = methodDecl.getBody().statements();
-            Statement cp = findCutPoint(statements);
             HashSet<Parameter> varsInScope = getVarsInScope(methodDecl, cp);
 
             // Construct a new method
@@ -130,15 +130,21 @@ public class MethodCutter {
      * @return  The statement from which we should start a new method
      */
     private Statement findCutPoint(List<Statement> statements) {
-        int bytes = 0;
-        for (Statement s : statements) {
-            bytes += memSize(s);
-            if (bytes > maxBytes) {
-                if (statements.indexOf(s) == 0) return statements.get(1);
-                else return s;
-            }
+        if (statements.size() <= 1) {
+            return null;
         }
-        return statements.get(statements.size() - 1);
+        else {
+            int bytes = 0;
+            for (Statement s : statements) {
+                bytes += memSize(s);
+                if (bytes > maxBytes) {
+                    System.out.println("Current size: " + bytes);
+                    if (statements.indexOf(s) == 0) return statements.get(1);
+                    else return s;
+                }
+            }
+            return null;
+        }
     }
 
     private boolean isMethodTooBig(MethodDeclaration method) {

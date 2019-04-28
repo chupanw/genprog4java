@@ -32,8 +32,7 @@ public class JavaReplaceOperation extends JavaEditOperation {
 		ASTNode fixCodeNode = ASTNode.copySubtree(rewriter.getAST(), fixHole.getCode());
 		ASTNode originalCodeNode = ASTNode.copySubtree(rewriter.getAST(), locationNode);
 
-		Block newBlock = rewriter.getAST().newBlock();
-		IfStatement ife = newBlock.getAST().newIfStatement();
+		IfStatement ife = rewriter.getAST().newIfStatement();
 
 		// condition
 		Expression fa = getNextFieldAccess(ife);
@@ -48,9 +47,7 @@ public class JavaReplaceOperation extends JavaEditOperation {
 		ife.setThenStatement(thenBlock);
 		ife.setElseStatement(elseBlock);
 
-		newBlock.statements().add(ife);
-
-        applyEditAndUpdateNodeStore(rewriter, newBlock, nodeStore, locationNode, originalCodeNode);
+        applyEditAndUpdateNodeStore(rewriter, ife, nodeStore, locationNode, originalCodeNode);
 	}
 
 	@Override

@@ -31,8 +31,7 @@ public class JavaDeleteOperation extends JavaEditOperation {
 
 		ASTNode originalCodeNode = ASTNode.copySubtree(rewriter.getAST(), locationNode);
 
-		Block newBlock = (Block) rewriter.getAST().createInstance(Block.class);
-		IfStatement ife = newBlock.getAST().newIfStatement();
+		IfStatement ife = rewriter.getAST().newIfStatement();
 
 		// condition
 		Expression cond = getNextFieldAccessNot(ife);
@@ -42,10 +41,9 @@ public class JavaDeleteOperation extends JavaEditOperation {
 
 		ife.setExpression(cond);
 		ife.setThenStatement(thenBlock);
-		newBlock.statements().add(ife);
 
 		/* Replace the faulty statement with the empty Block. */
-        applyEditAndUpdateNodeStore(rewriter, newBlock, nodeStore, locationNode, originalCodeNode);
+        applyEditAndUpdateNodeStore(rewriter, ife, nodeStore, locationNode, originalCodeNode);
 	}
 
 	@Override
