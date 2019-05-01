@@ -10,6 +10,7 @@ import org.eclipse.jface.text.IDocument;
 import org.eclipse.text.edits.TextEdit;
 
 import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.List;
 
 /**
@@ -63,65 +64,233 @@ public class MethodCutter {
     private void processClass(TypeDeclaration classDecl) {
         MethodDeclaration[] methodDecls = classDecl.getMethods();
         for (MethodDeclaration m : methodDecls) {
-            processMethod(m, true, classDecl);
+            processMethod(classDecl, m);
         }
     }
 
-    private void processMethod(MethodDeclaration methodDecl, boolean isExisting, TypeDeclaration classDecl) {
+    /**
+     * Iteratively split methods into smaller ones
+     *
+     * If the first statement of the method is already too big, we try to split that statement further,
+     * based on the statement type.
+     *
+     * @param classDecl
+     * @param methodDecl
+     */
+    private MethodDeclaration processMethod(TypeDeclaration classDecl, MethodDeclaration methodDecl) {
         List<Statement> statements = methodDecl.getBody().statements();
         Statement cp = findCutPoint(statements);
         if (cp != null) {
-            logger.info("Cutting " + classDecl.getName() + "." + methodDecl.getName());
-            HashSet<Parameter> varsInScope = getVarsInScope(methodDecl, cp);
-
-            // Construct a new method
-            MethodDeclaration m = ast.newMethodDeclaration();
-            String mn = "_snippet_" + methodDecl.getName().getIdentifier() + "_" + VarexCGlobal.getNextMethodID();
-            m.setName(ast.newSimpleName(mn));
-            m.setReturnType2((Type) ASTNode.copySubtree(ast, methodDecl.getReturnType2()));
-            MethodInvocation mi = ast.newMethodInvocation();    // the replacement return expression
-            mi.setName(ast.newSimpleName(mn));
-
-            for (Parameter p : varsInScope) {
-                SingleVariableDeclaration svd = ast.newSingleVariableDeclaration();
-                svd.setType(p.getType());
-                svd.setName(p.getName());
-                m.parameters().add(svd);
-                mi.arguments().add(p.getName());
-            }
-
-            Block block = ast.newBlock();
-            m.setBody(block);
-            int index = statements.indexOf(cp);
-            ListRewrite lr = rewriter.getListRewrite(methodDecl.getBody(), Block.STATEMENTS_PROPERTY);
-
-            for (int i = index; i < statements.size(); i++) {
-                block.statements().add(ASTNode.copySubtree(ast, statements.get(i)));
-                lr.remove(statements.get(i), null);
-            }
-
-            if (!(m.getReturnType2().isPrimitiveType() && ((PrimitiveType) m.getReturnType2()).getPrimitiveTypeCode() == PrimitiveType.VOID)) {
-                ReturnStatement rs = ast.newReturnStatement();
-                rs.setExpression(mi);
-                lr.insertLast(rs, null);
+            // different ways of splitting depending on the types of statement
+            if (statements.indexOf(cp) == 1) {
+                Statement first = statements.get(0);
+                if (first instanceof IfStatement) {
+                    return splitIfStatement(classDecl, methodDecl, cp);
+                }
+                else if (first instanceof Block) {
+                    System.err.println("Block? Should not appear!?");
+                    return splitMethodBody(classDecl, methodDecl, cp);
+                }
+                else if (first instanceof WhileStatement || first instanceof ForStatement || first instanceof EnhancedForStatement || first instanceof DoStatement || first instanceof SwitchStatement || first instanceof TryStatement) {
+                    System.err.println("Might need to split " + first.getClass());
+                    return splitMethodBody(classDecl, methodDecl, cp);
+                }
+                else {
+                    return splitMethodBody(classDecl, methodDecl, cp);
+                }
             }
             else {
-                ExpressionStatement es = ast.newExpressionStatement(mi);
-                lr.insertLast(es, null);
+                return splitMethodBody(classDecl, methodDecl, cp);
             }
-
-            if (!isExisting) {
-                ListRewrite lr2 = rewriter.getListRewrite(classDecl, TypeDeclaration.BODY_DECLARATIONS_PROPERTY);
-                lr2.insertLast(methodDecl, null);
-            }
-            processMethod(m, false, classDecl);
         }
         else {
-            if (!isExisting) {
-                ListRewrite lr = rewriter.getListRewrite(classDecl, TypeDeclaration.BODY_DECLARATIONS_PROPERTY);
-                lr.insertLast(methodDecl, null);
+            return methodDecl;
+        }
+    }
+
+    /**
+     * Split a huge {@link IfStatement}
+     *
+     * We assume the incoming method to have the following structure:
+     *
+     *  if (condition)
+     *      Statement
+     *  [
+     *  else
+     *      Statement
+     *  ]
+     *  Statements*
+     *
+     * In this case, we split in the following way:
+     *
+     *  1. Put the tailing statements into a separate method M1, and replace with a method call C1
+     *  2. Put C1 into both then branch and else branch, if there is an else branch
+     *  3. Extract branches as methods and replace with method calls
+     *  4. Continue splitting the extracted methods
+     *
+     *
+     * @param classDecl
+     * @param methodDecl
+     * @return
+     */
+    private MethodDeclaration splitIfStatement(TypeDeclaration classDecl, MethodDeclaration methodDecl, Statement cp) {
+        logger.info("Cutting " + classDecl.getName() + "." + methodDecl.getName() + " by splitting if statement");
+        IfStatement ifStmt = (IfStatement) methodDecl.getBody().statements().get(0);
+        // Step 1
+        MethodDeclaration splitM = splitMethodBody(classDecl, methodDecl, cp);
+        // todo: has this been written yet?
+
+        // Step 2
+        ListRewrite lr = rewriter.getListRewrite(splitM.getBody(), Block.STATEMENTS_PROPERTY);
+        List<Statement> rewritten = lr.getRewrittenList();
+        Statement last = rewritten.get(rewritten.size() - 1);
+        lr.remove(last, null);
+
+        // then branch
+        List<Statement> thenStmts = new LinkedList<>();
+        if (ifStmt.getThenStatement() instanceof Block) {
+            thenStmts.addAll(getStmtsFromBlock((Block) ifStmt.getThenStatement()));
+        }
+        else {
+            thenStmts.add(ifStmt.getThenStatement());
+        }
+        thenStmts.add(last);
+        Block thenBlock = branch2Method(classDecl, methodDecl, thenStmts);
+
+        // else branch
+        List<Statement> elseStmts = new LinkedList<>();
+        if (ifStmt.getElseStatement() != null) {
+            if (ifStmt.getElseStatement() instanceof Block) {
+                elseStmts.addAll(getStmtsFromBlock((Block) ifStmt.getElseStatement()));
+            }
+            else {
+                elseStmts.add(ifStmt.getElseStatement());
             }
         }
+        elseStmts.add(last);
+        Block elseBlock = branch2Method(classDecl, methodDecl, elseStmts);
+
+        IfStatement replacementIfStmt = ast.newIfStatement();
+        replacementIfStmt.setExpression((Expression) ASTNode.copySubtree(ast, ifStmt.getExpression()));
+        replacementIfStmt.setThenStatement(thenBlock);
+        replacementIfStmt.setElseStatement(elseBlock);
+
+        rewriter.replace(ifStmt, replacementIfStmt, null);
+
+        return methodDecl;
+    }
+
+    private List<Statement> getStmtsFromBlock(Block block) {
+        if (block.statements().size() == 1 && block.statements().get(0) instanceof Block) {
+            return getStmtsFromBlock((Block) block.statements().get(0));
+        } else {
+            return block.statements();
+        }
+    }
+
+    private Block branch2Method(TypeDeclaration classDecl, MethodDeclaration methodDecl, List<Statement> statements) {
+        MethodDeclaration m = ast.newMethodDeclaration();
+        MethodInvocation mi = ast.newMethodInvocation();
+        Block mBody = ast.newBlock();
+        String mName = "_splitting_branch_" + VarexCGlobal.getNextMethodID();
+
+        mi.setName(ast.newSimpleName(mName));
+        m.setReturnType2((Type) ASTNode.copySubtree(ast, methodDecl.getReturnType2()));
+        m.setName(ast.newSimpleName(mName));
+        m.setBody(mBody);
+
+        for (Object o : methodDecl.parameters()) {
+            SingleVariableDeclaration svd = (SingleVariableDeclaration) o;
+            SingleVariableDeclaration svd2 = ast.newSingleVariableDeclaration();
+            svd2.setType((Type) ASTNode.copySubtree(ast, svd.getType()));
+            svd2.setName(ast.newSimpleName(svd.getName().getIdentifier()));
+            m.parameters().add(svd2);
+            mi.arguments().add(ast.newSimpleName(svd.getName().getIdentifier()));
+        }
+
+        for (Statement s : statements) {
+            mBody.statements().add(ASTNode.copySubtree(ast, s));
+        }
+
+        MethodDeclaration processed = processMethod(classDecl, m);
+        writeMethod2Class(classDecl, processed);
+
+        Block branch = ast.newBlock();
+        Statement last = statements.get(statements.size() - 1);
+        if (last instanceof ReturnStatement) {
+            ReturnStatement retStmt = ast.newReturnStatement();
+            retStmt.setExpression(mi);
+            branch.statements().add(retStmt);
+        }
+        else {
+            ExpressionStatement expStmt = ast.newExpressionStatement(mi);
+            branch.statements().add(expStmt);
+        }
+        return branch;
+    }
+
+    /**
+     * Split a method at some point, put the trailing statements into a new method and insert a method call
+     *
+     * @param classDecl Current class declaration, used for inserting new methods
+     * @param methodDecl    The method being split
+     * @param cp    Cut point, the statement starting from which a new method should be created
+     * @return  The method after splitting.
+     */
+    private MethodDeclaration splitMethodBody(TypeDeclaration classDecl, MethodDeclaration methodDecl, Statement cp) {
+        logger.info("Cutting " + classDecl.getName() + "." + methodDecl.getName() + " by splitting method body");
+
+        List<Statement> statements = methodDecl.getBody().statements();
+        HashSet<Parameter> blockVarsInScope = getVarsInScope(methodDecl.getBody(), cp);
+        HashSet<Parameter> parameters = getParameters(methodDecl);
+        HashSet<Parameter> varsInScope = new HashSet<>(blockVarsInScope);
+        varsInScope.addAll(parameters);
+
+        // Construct a new method and the method invocation
+        MethodDeclaration m = ast.newMethodDeclaration();
+        String mn = "_snippet_" + methodDecl.getName().getIdentifier() + "_" + VarexCGlobal.getNextMethodID();
+        m.setName(ast.newSimpleName(mn));
+        m.setReturnType2((Type) ASTNode.copySubtree(ast, methodDecl.getReturnType2()));
+        MethodInvocation mi = ast.newMethodInvocation();    // the replacement return expression
+        mi.setName(ast.newSimpleName(mn));
+
+        for (Parameter p : varsInScope) {
+            SingleVariableDeclaration svd = ast.newSingleVariableDeclaration();
+            svd.setType(p.getType());
+            svd.setName(p.getName());
+            m.parameters().add(svd);
+            mi.arguments().add(p.getName());
+        }
+
+        Block block = ast.newBlock();
+        m.setBody(block);
+        int index = statements.indexOf(cp);
+        ListRewrite lr = rewriter.getListRewrite(methodDecl.getBody(), Block.STATEMENTS_PROPERTY);
+
+        for (int i = index; i < statements.size(); i++) {
+            block.statements().add(ASTNode.copySubtree(ast, statements.get(i)));
+            lr.remove(statements.get(i), null);
+        }
+
+        if (!(m.getReturnType2().isPrimitiveType() && ((PrimitiveType) m.getReturnType2()).getPrimitiveTypeCode() == PrimitiveType.VOID)) {
+            ReturnStatement rs = ast.newReturnStatement();
+            rs.setExpression(mi);
+            lr.insertLast(rs, null);
+        }
+        else {
+            ExpressionStatement es = ast.newExpressionStatement(mi);
+            lr.insertLast(es, null);
+        }
+
+        MethodDeclaration processed = processMethod(classDecl, m);
+        writeMethod2Class(classDecl, processed);
+
+        return methodDecl;
+    }
+
+    private void writeMethod2Class(TypeDeclaration classDecl, MethodDeclaration m) {
+        ListRewrite lr = rewriter.getListRewrite(classDecl, TypeDeclaration.BODY_DECLARATIONS_PROPERTY);
+        lr.insertLast(m, null);
     }
 
     /**
@@ -166,12 +335,12 @@ public class MethodCutter {
      * For both {@link VariableDeclarationStatement} and {@link VariableDeclarationExpression},
      * there could be multiple {@link VariableDeclarationFragment}s.
      *
-     * @param m
+     * @param block
      * @param cp
      * @return
      */
-    private HashSet<Parameter> getVarsInScope(MethodDeclaration m, Statement cp) {
-        List<Statement> statements = m.getBody().statements();
+    private HashSet<Parameter> getVarsInScope(Block block, Statement cp) {
+        List<Statement> statements = block.statements();
         HashSet<Parameter> res = new HashSet<>();
         int index = statements.indexOf(cp);
         for (int i = index - 1; i >= 0 ; i--) {
@@ -193,6 +362,11 @@ public class MethodCutter {
             }
         }
         // method arguments
+        return res;
+    }
+
+    private HashSet<Parameter> getParameters(MethodDeclaration m) {
+        HashSet<Parameter> res = new HashSet<>();
         List<SingleVariableDeclaration> params = m.parameters();
         for (SingleVariableDeclaration p : params) {
             res.add(new Parameter(p.getType(), p.getName(), ast));
