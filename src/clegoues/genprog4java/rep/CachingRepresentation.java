@@ -225,8 +225,15 @@ Representation<G>  {
 			this.setFitness(0.0);
 			return compileFail;
 		}
-		return this.internalTestCase(this.variantFolder,
-				this.variantFolder + Configuration.globalExtension, test, doingCoverage);
+		// VarexC does not need fitness calculation, but we do need the above compilation
+		if (!doingCoverage) {
+			FitnessValue dummy = new FitnessValue();
+			dummy.setAllPassed(false);
+			return dummy;
+		} else {
+			return this.internalTestCase(this.variantFolder,
+					this.variantFolder + Configuration.globalExtension, test, doingCoverage);
+		}
 	}
 
 	public FitnessValue testCase(TestCase test) {
