@@ -188,6 +188,21 @@ public class MethodCutter {
         }
     }
 
+    /**
+     * Potentially unsafe if there are blocks for scoping in the original code
+     * @param block
+     * @param statements
+     */
+    private void addStmtsToBlock(Block block, List<Statement> statements) {
+        for (Statement s : statements) {
+            if (s instanceof Block) {
+                addStmtsToBlock(block, ((Block) s).statements());
+            } else {
+                block.statements().add(ASTNode.copySubtree(ast, s));
+            }
+        }
+    }
+
     private Block branch2Method(TypeDeclaration classDecl, MethodDeclaration methodDecl, List<Statement> statements) {
         MethodDeclaration m = ast.newMethodDeclaration();
         MethodInvocation mi = ast.newMethodInvocation();
@@ -208,9 +223,7 @@ public class MethodCutter {
             mi.arguments().add(ast.newSimpleName(svd.getName().getIdentifier()));
         }
 
-        for (Statement s : statements) {
-            mBody.statements().add(ASTNode.copySubtree(ast, s));
-        }
+        addStmtsToBlock(mBody, statements);
 
         MethodDeclaration processed = processMethod(classDecl, m);
         writeMethod2Class(classDecl, processed);
