@@ -36,9 +36,16 @@ public class JavaReplaceOperation extends JavaEditOperation {
 
 		// condition
 		Expression fa = getNextFieldAccess(ife);
+		// then block
+		Block thenBlock = rewriter.getAST().newBlock();
+		thenBlock.statements().add(fixCodeNode);
+		// else block
+		Block elseBlock = rewriter.getAST().newBlock();
+		elseBlock.statements().add(originalCodeNode);
+
 		ife.setExpression(fa);
-		ife.setThenStatement((Statement) fixCodeNode);
-		ife.setElseStatement((Statement) originalCodeNode);
+		ife.setThenStatement(thenBlock);
+		ife.setElseStatement(elseBlock);
 
         applyEditAndUpdateNodeStore(rewriter, ife, nodeStore, locationNode, originalCodeNode);
 	}
