@@ -6,6 +6,8 @@ import clegoues.genprog4java.rep.JavaRepresentation;
 import clegoues.genprog4java.rep.MergedRepresentation;
 import clegoues.genprog4java.rep.Representation;
 
+import java.util.HashSet;
+
 public class GeneticProgramming<G extends EditOperation> extends Search<G>{
 	private int generationsRun = 0;
 
@@ -45,10 +47,23 @@ public class GeneticProgramming<G extends EditOperation> extends Search<G>{
 			initialPopulation.add(original.copy());
 			stillNeed--;
 		}
-		for (int i = 0; i < stillNeed; i++) {
+		HashSet<Representation<G>> set = new HashSet<>();
+		int attempts = 0;
+		while (set.size() < stillNeed) {
+		    int oldSize = set.size();
 			Representation<G> newItem = original.copy();
+			attempts++;
 			this.mutate(newItem);
-			initialPopulation.add(newItem);
+			set.add(newItem);
+			if (oldSize != set.size())
+				System.out.println("Growing population " + set.size() + "/" + stillNeed);
+			if (attempts > stillNeed * 100) {
+				System.out.println("Stop growing after trying " + attempts + " times");
+				break;
+			}
+		}
+		for (Representation<G> rep : set) {
+			initialPopulation.add(rep);
 		}
 
         initialPopulation.removeLast();

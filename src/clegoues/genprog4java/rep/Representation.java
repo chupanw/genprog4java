@@ -37,10 +37,7 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 import org.apache.commons.exec.CommandLine;
 import org.apache.commons.lang3.builder.HashCodeBuilder;
@@ -152,6 +149,32 @@ Comparable<Representation<G>> {
 		}
 		return myHashCode;
 	}
+
+	@Override
+	public boolean equals(Object that) {
+		if (that instanceof Representation) {
+			List<Pair<ClassInfo, String>> thisBuffers = computeSourceBuffers();
+			List<Pair<ClassInfo, String>> thatBuffers = ((Representation) that).computeSourceBuffers();
+			if (thisBuffers.size() == thatBuffers.size()) {
+				HashMap<ClassInfo, String> thisMap = new HashMap<>();
+				for (Pair<ClassInfo, String> thisEle : thisBuffers) {
+					thisMap.put(thisEle.getLeft(), thisEle.getRight());
+				}
+				for (Pair<ClassInfo, String> thatEle : thatBuffers) {
+					String s = thisMap.get(thatEle.getLeft());
+					if (s == null || !s.equals(thatEle.getRight())) {
+						return false;
+					}
+				}
+				return true;
+			} else {
+				return false;
+			}
+		} else {
+			return false;
+		}
+	}
+
 	
 	public abstract void performEdit(Mutation edit, Location dst, EditHole source); 
 
