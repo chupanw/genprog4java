@@ -210,6 +210,9 @@ Representation<G>  {
 		if (this.alreadyCompiled == null) {
 			String newName = CachingRepresentation.newVariantFolder();
 			this.variantFolder = newName;
+			if (getGenome().size() == 1) {
+			    getGenome().get(0).setVariantFolder(newName);
+			}
 			if (!this.compile(newName, newName)) {
 				this.setFitness(0.0);
 				logger.info(this.getName() + " at " + newName + " fails to compile\n");

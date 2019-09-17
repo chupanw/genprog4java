@@ -49,6 +49,9 @@ public interface EditOperation<R> {
 	
 	public Location getLocation();
 
+	public String getVariantFolder();
+	public void setVariantFolder(String f);
+
 	public void setHoleCode(EditHole target);
 
 	public void edit(R rewriter);
@@ -57,19 +60,19 @@ public interface EditOperation<R> {
 
 	default Expression getNextFieldAccess(ASTNode parent) {
 		// condition
-		String f = VarexCGlobal.getNext();
+		VarexCGlobal.addVariantName(this.getVariantFolder());
 		FieldAccess fa = parent.getAST().newFieldAccess();
 		fa.setExpression(fa.getAST().newQualifiedName(fa.getAST().newSimpleName("varexc"), fa.getAST().newSimpleName("GlobalOptions")));
-		fa.setName(fa.getAST().newSimpleName(f));
+		fa.setName(fa.getAST().newSimpleName(this.getVariantFolder()));
 		return fa;
 	}
 
 	default Expression getNextFieldAccessNot(ASTNode parent) {
 		// condition
-		String f = VarexCGlobal.getNext();
+		VarexCGlobal.addVariantName(this.getVariantFolder());
 		FieldAccess fa = parent.getAST().newFieldAccess();
 		fa.setExpression(fa.getAST().newQualifiedName(fa.getAST().newSimpleName("varexc"), fa.getAST().newSimpleName("GlobalOptions")));
-		fa.setName(fa.getAST().newSimpleName(f));
+		fa.setName(fa.getAST().newSimpleName(this.getVariantFolder()));
 		PrefixExpression cond = parent.getAST().newPrefixExpression();
 		cond.setOperator(PrefixExpression.Operator.NOT);
 		cond.setOperand(fa);

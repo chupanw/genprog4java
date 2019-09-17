@@ -53,6 +53,7 @@ public abstract class JavaEditOperation implements EditOperation<ASTRewrite> {
 
 	private Location<JavaStatement> location = null;
 	private EditHole holeCode = null;
+	private String variantFolder = null;
 	
 	protected JavaEditOperation() { } 
 	
@@ -76,4 +77,15 @@ public abstract class JavaEditOperation implements EditOperation<ASTRewrite> {
 		holeCode = hole; 
 	}
 
+	public String getVariantFolder() {
+	    if (variantFolder == null)
+	    	throw new RuntimeException("The filed variantFolder not initialized");
+		return variantFolder;
+	}
+
+	public void setVariantFolder(String f) {
+	    if (variantFolder != null)
+	    	throw new RuntimeException("Overwriting existing variantFolder");
+	    this.variantFolder = f;
+	}
 }

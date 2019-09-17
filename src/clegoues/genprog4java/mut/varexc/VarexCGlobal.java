@@ -5,29 +5,20 @@ import org.eclipse.jdt.core.dom.rewrite.ASTRewrite;
 import org.eclipse.jdt.core.dom.rewrite.ITrackedNodePosition;
 import org.eclipse.jdt.core.dom.rewrite.ListRewrite;
 
+import java.util.HashSet;
 /**
  * Generate a class that contains all boolean options
  */
 public class VarexCGlobal {
-    // inclusive
-    private static int startID = 0;
-    // non-exclusive
-    private static int endID = 0;
-
     private static int methodCnt = 0;
 
-    private final static String prefix = "c";
-
-    public static String getNext() {
-        endID++;
-        return prefix + (endID - 1);
+    private static HashSet<String> variantNames = new HashSet<>();
+    public static void addVariantName(String n) {
+        variantNames.add(n);
     }
 
     public static int getNextMethodID() {
         return methodCnt++;
-    }
-    public static void resetStartingIndex() {
-        startID = endID;
     }
 
     public static String getCodeAsString() {
@@ -36,8 +27,8 @@ public class VarexCGlobal {
         buf.append("package varexc;\n\n");
         buf.append("import edu.cmu.cs.varex.annotation.VConditional;\n\n");
         buf.append("public class GlobalOptions {\n");
-        for (int i = startID; i < endID; i++) {
-            buf.append("\t@VConditional public static boolean " + prefix + i + " = false;\n");
+        for (String n : variantNames) {
+            buf.append("\t@VConditional public static boolean " + n + " = false;\n");
         }
         buf.append("}\n");
         return buf.toString();
