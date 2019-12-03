@@ -110,6 +110,7 @@ public class DefaultLocalization extends Localization {
 	//protected static boolean regenPaths = false;
 	protected static boolean regenPaths = ConfigurationBuilder.of( BOOLEAN )
 			.withVarName( "regenPaths" )
+			.withDefault("true")
 			.withHelp( "regenerate coverage information" )
 			.inGroup( "DefaultLocalization Parameters" )
 			.build();
@@ -342,6 +343,7 @@ public class DefaultLocalization extends Localization {
 			return readPathFile(path);
 		} else {
 			String covPath = Configuration.outputDir + "/coverage/";
+			logger.info("Computing coverage at " + covPath);
 			File covDir = new File(covPath);
 			if (!covDir.exists())
 				covDir.mkdir();
