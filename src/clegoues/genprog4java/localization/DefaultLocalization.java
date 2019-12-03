@@ -1,47 +1,10 @@
 package clegoues.genprog4java.localization;
 
-import static clegoues.util.ConfigurationBuilder.BOOLEAN;
-import static clegoues.util.ConfigurationBuilder.BOOL_ARG;
-import static clegoues.util.ConfigurationBuilder.DOUBLE;
-import static clegoues.util.ConfigurationBuilder.STRING;
-
-import org.apache.log4j.Logger;
-import org.eclipse.jdt.core.dom.ASTNode;
-import org.eclipse.jdt.core.dom.MethodRef;
-import org.jacoco.core.analysis.Analyzer;
-import org.jacoco.core.analysis.CoverageBuilder;
-import org.jacoco.core.analysis.IClassCoverage;
-import org.jacoco.core.analysis.ICounter;
-import org.jacoco.core.data.ExecutionData;
-import org.jacoco.core.data.ExecutionDataReader;
-import org.jacoco.core.data.ExecutionDataStore;
-import org.jacoco.core.data.IExecutionDataVisitor;
-import org.jacoco.core.data.ISessionInfoVisitor;
-import org.jacoco.core.data.SessionInfo;
-
-import java.io.BufferedWriter;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.FileWriter;
-import java.io.FilenameFilter;
-import java.io.IOException;
-import java.io.PrintWriter;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Scanner;
-import java.util.Set;
-import java.util.TreeSet;
-
 import clegoues.genprog4java.Search.GiveUpException;
 import clegoues.genprog4java.Search.Search;
 import clegoues.genprog4java.fitness.Fitness;
 import clegoues.genprog4java.fitness.TestCase;
 import clegoues.genprog4java.java.ClassInfo;
-import clegoues.genprog4java.java.JavaStatement;
 import clegoues.genprog4java.main.Configuration;
 import clegoues.genprog4java.mut.WeightedMutation;
 import clegoues.genprog4java.rep.JavaRepresentation;
@@ -49,6 +12,17 @@ import clegoues.genprog4java.rep.Representation;
 import clegoues.genprog4java.rep.WeightedAtom;
 import clegoues.util.ConfigurationBuilder;
 import clegoues.util.GlobalUtils;
+import org.apache.log4j.Logger;
+import org.jacoco.core.analysis.Analyzer;
+import org.jacoco.core.analysis.CoverageBuilder;
+import org.jacoco.core.analysis.IClassCoverage;
+import org.jacoco.core.analysis.ICounter;
+import org.jacoco.core.data.*;
+
+import java.io.*;
+import java.util.*;
+
+import static clegoues.util.ConfigurationBuilder.*;
 
 //this class implements boring, default path-file-style localization.
 @SuppressWarnings("rawtypes")
@@ -88,8 +62,9 @@ public class DefaultLocalization extends Localization {
 			.inGroup( "DefaultLocalization Parameters" )
 			.build();
 	//protected static boolean allowCoverageFail = false;
-	protected static boolean allowCoverageFail = ConfigurationBuilder.of( BOOLEAN )
+	protected static boolean allowCoverageFail = ConfigurationBuilder.of( BOOL_ARG )
 			.withVarName( "allowCoverageFail" )
+			.withDefault("false")
 			.withHelp( "ignore unexpected test results in coverage" )
 			.inGroup( "DefaultLocalization Parameters" )
 			.build();
@@ -108,7 +83,7 @@ public class DefaultLocalization extends Localization {
 			.inGroup( "DefaultLocalization Parameters" )
 			.build();
 	//protected static boolean regenPaths = false;
-	protected static boolean regenPaths = ConfigurationBuilder.of( BOOLEAN )
+	protected static boolean regenPaths = ConfigurationBuilder.of( BOOL_ARG )
 			.withVarName( "regenPaths" )
 			.withDefault("true")
 			.withHelp( "regenerate coverage information" )
