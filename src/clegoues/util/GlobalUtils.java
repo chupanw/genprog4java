@@ -110,6 +110,17 @@ public class GlobalUtils {
 			try {
 				if(p.waitFor(maxTimeToRunCommandInMin, TimeUnit.MINUTES)) {
 					retValue=p.exitValue();
+					if (Configuration.debug) {
+						BufferedReader stdout = new BufferedReader(new InputStreamReader(p.getInputStream()));
+						String s = null;
+						while ((s = stdout.readLine()) != null) {
+							System.out.println(s);
+						}
+						BufferedReader stderr = new BufferedReader(new InputStreamReader(p.getErrorStream()));
+						while ((s = stderr.readLine()) != null) {
+							System.out.println(s);
+						}
+					}
 				}else{
 					retValue=-1; //error code
 					p.destroy();

@@ -436,7 +436,7 @@ CachingRepresentation<JavaEditOperation> {
 				bw.flush();
 
 				bw.close();
-				if(Configuration.compileCommand != "") {
+				if(!Configuration.compileCommand.equalsIgnoreCase("")) {
 					String path = 
 							Configuration.workingDir+ File.separatorChar + Configuration.sourceDir+ File.separatorChar + pathToFile; 
 
@@ -450,7 +450,7 @@ CachingRepresentation<JavaEditOperation> {
 			// TODO Auto-generated catch block
 		}
 
-		if(Configuration.compileCommand == "") {
+		if(Configuration.compileCommand.equalsIgnoreCase("")) {
 			Iterable<? extends JavaFileObject> fileObjects = ASTUtils
 					.getJavaSourceFromString(progName, sourceBuffers);
 
@@ -485,7 +485,9 @@ CachingRepresentation<JavaEditOperation> {
 				return true;
 			}
 		} else {
-			return GlobalUtils.runCommand(Configuration.compileCommand);
+			// Appending variant folder to the command so that we know each variant needs to be compiled
+			// It shouldn't affect commands that do not expect arguments anyway
+			return GlobalUtils.runCommand(Configuration.compileCommand + " " + Configuration.outputDir + File.separator + exeName);
 		}
 	}
 

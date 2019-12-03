@@ -190,6 +190,11 @@ public class Configuration {
 			.withDefault("true")
 			.withHelp("whether to clean up the output dir before execution")
 			.build();
+	public static Boolean debug = ConfigurationBuilder.of(BOOL_ARG)
+			.withVarName("debug")
+			.withDefault("false")
+			.withHelp("print debug messages")
+			.build();
 
 	private Configuration() {}
 
