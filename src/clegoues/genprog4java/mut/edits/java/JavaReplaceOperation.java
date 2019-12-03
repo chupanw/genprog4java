@@ -47,7 +47,14 @@ public class JavaReplaceOperation extends JavaEditOperation {
 		ife.setThenStatement(thenBlock);
 		ife.setElseStatement(elseBlock);
 
-        applyEditAndUpdateNodeStore(rewriter, ife, nodeStore, locationNode, originalCodeNode);
+		ASTNode replacement = ife;
+		if (locationNode.getParent() instanceof MethodDeclaration) {
+			// we have reached the method body level, cannot go higher
+			replacement = rewriter.getAST().newBlock();
+			((Block) replacement).statements().add(ife);
+		}
+
+        applyEditAndUpdateNodeStore(rewriter, replacement, nodeStore, locationNode, originalCodeNode);
 	}
 
 	@Override
