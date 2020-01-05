@@ -1,4 +1,9 @@
-import os, shutil, sys, tempfile, subprocess
+import os
+import shutil
+import subprocess
+import sys
+import tempfile
+
 
 def compile():
     target = sys.argv[1]
@@ -18,19 +23,25 @@ def compile():
         d = os.path.join(tempdir, f[:f.rfind('/')])
         if not os.path.isdir(d):
             os.makedirs(d)
-        # backup
+        # backup, skip if files not exist in the original src folder, e.g., GlobalOptions.java
         abs_origin_fp = os.path.join(pwd, 'src/main/java/', f)
-        abs_backup = os.path.join(tempdir, f)
-        # print('Copying %s to %s' % (abs_origin_fp, abs_backup))
-        shutil.copy(abs_origin_fp, abs_backup)
+        if os.path.exists(abs_origin_fp):
+            abs_backup = os.path.join(tempdir, f)
+            # print('Copying %s to %s' % (abs_origin_fp, abs_backup))
+            shutil.copy(abs_origin_fp, abs_backup)
         # copy mutated files to the src folder
         abs_mutated = os.path.join(pwd, target, f)
-        # print('Copying %s to %s' % (abs_mutated, abs_origin_fp))
-        shutil.copy(abs_mutated, abs_origin_fp)
+        print('Copying %s to %s' % (abs_mutated, abs_origin_fp))
+        if not os.path.exists(abs_origin_fp):
+            abs_origin_dir = abs_origin_fp[:abs_origin_fp.rfind('/')]
+            os.makedirs(abs_origin_dir)
+            shutil.copy(abs_mutated, abs_origin_dir)
+        else:
+            shutil.copyfile(abs_mutated, abs_origin_fp)
 
     # compile with ant
-    p = subprocess.run(['ant', 'clean'], cwd = pwd)
-    p = subprocess.run(['ant', 'compile.tests'], cwd = pwd)
+#     p = subprocess.run(['ant', 'clean'], cwd = pwd)
+    p = subprocess.run(['ant', 'compile.tests'], cwd=pwd)
     if p.returncode != 0:
         sys.exit(-1)
     abs_classes = pwd + 'target/classes/'
