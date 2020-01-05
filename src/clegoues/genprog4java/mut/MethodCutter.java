@@ -263,7 +263,8 @@ public class MethodCutter {
         MethodDeclaration m = ast.newMethodDeclaration();
         String mn = "_snippet_" + methodDecl.getName().getIdentifier() + "_" + VarexCGlobal.getNextMethodID();
         m.setName(ast.newSimpleName(mn));
-        m.setReturnType2((Type) ASTNode.copySubtree(ast, methodDecl.getReturnType2()));
+        Type retType = getReturnType(methodDecl);
+        m.setReturnType2((Type) ASTNode.copySubtree(ast, retType));
         MethodInvocation mi = ast.newMethodInvocation();    // the replacement return expression
         mi.setName(ast.newSimpleName(mn));
 
@@ -299,6 +300,17 @@ public class MethodCutter {
         writeMethod2Class(classDecl, processed);
 
         return methodDecl;
+    }
+
+    private Type getReturnType(MethodDeclaration md) {
+        Type t = md.getReturnType2();
+        if (t == null) {
+            // e.g., constructor
+            return md.getAST().newPrimitiveType(PrimitiveType.VOID);
+        }
+        else {
+            return t;
+        }
     }
 
     private void writeMethod2Class(TypeDeclaration classDecl, MethodDeclaration m) {
