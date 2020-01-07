@@ -1,14 +1,15 @@
 package clegoues.genprog4java.mut.edits.java;
 
-import java.util.HashMap;
-
-import org.eclipse.jdt.core.dom.*;
-import org.eclipse.jdt.core.dom.rewrite.ASTRewrite;
-
 import clegoues.genprog4java.mut.EditHole;
-import clegoues.genprog4java.mut.Mutation;
 import clegoues.genprog4java.mut.holes.java.ExpChoiceHole;
 import clegoues.genprog4java.mut.holes.java.JavaLocation;
+import org.eclipse.jdt.core.dom.ASTNode;
+import org.eclipse.jdt.core.dom.ConditionalExpression;
+import org.eclipse.jdt.core.dom.Expression;
+import org.eclipse.jdt.core.dom.InfixExpression;
+import org.eclipse.jdt.core.dom.rewrite.ASTRewrite;
+
+import java.util.HashMap;
 
 public class ExpressionModAdd extends ExpressionReplacer {
 
@@ -36,7 +37,8 @@ public class ExpressionModAdd extends ExpressionReplacer {
 		InfixExpression newExpression = rewriter.getAST().newInfixExpression();
 		newExpression.setOperator(newOperator);
 		newExpression.setLeftOperand((Expression) rewriter.createCopyTarget(locationExp));
-		newExpression.setRightOperand((Expression) rewriter.createCopyTarget(newExpCode));
+		Expression rightOp = (Expression) ASTNode.copySubtree(rewriter.getAST(), newExpCode);
+		newExpression.setRightOperand(rightOp);
 		this.replaceExp(rewriter, newExpression);
 	}
 
