@@ -378,15 +378,15 @@ CachingRepresentation<JavaEditOperation> {
 				bw.flush();
 
 				bw.close();
-				if(!Configuration.compileCommand.equalsIgnoreCase("")) {
-					String path = 
-							Configuration.workingDir+ File.separatorChar + Configuration.sourceDir+ File.separatorChar + pathToFile; 
-
-					BufferedWriter bw2 = new BufferedWriter(new FileWriter(path)); 
-					bw2.write(program);
-					bw2.flush();
-					bw2.close();
-				}	
+//				if(!Configuration.compileCommand.equalsIgnoreCase("")) {
+//					String path =
+//							Configuration.workingDir+ File.separatorChar + Configuration.sourceDir+ File.separatorChar + pathToFile;
+//
+//					BufferedWriter bw2 = new BufferedWriter(new FileWriter(path));
+//					bw2.write(program);
+//					bw2.flush();
+//					bw2.close();
+//				}
 			}
 		} catch (IOException e) {
 			// TODO Auto-generated catch block
