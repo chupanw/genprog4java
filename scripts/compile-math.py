@@ -30,10 +30,13 @@ def compile():
 
     tempdir = tempfile.mkdtemp()
     backup_overwrite(pwd, target, tempdir, java_files)
+    copyVarexCFiles(pwd, target)
     p = subprocess.run(['ant', 'compile.tests'], cwd=pwd)
-    if p.returncode == 0:
-        copy_compiled_classes(pwd, target)
+    # Disable this part to save disk space...
+    # if p.returncode == 0:
+    #     copy_compiled_classes(pwd, target)
     recover_source_files(pwd, tempdir, java_files)
+    cleanupVarexCFiles(pwd)
     shutil.rmtree(tempdir)
 
     if p.returncode != 0:
@@ -42,6 +45,17 @@ def compile():
     else:
         print("Successfully compiled %s" % target)
         sys.exit(0)
+
+def copyVarexCFiles(pwd, target): 
+    source = os.path.join(pwd, target, 'varexc')
+    if os.path.exists(source):
+        dst = os.path.join(pwd, 'src/main/java/varexc/')
+        shutil.copytree(source, dst)
+
+def cleanupVarexCFiles(pwd): 
+    d = os.path.join(pwd, 'src/main/java/varexc/')
+    if os.path.exists(d):
+        shutil.rmtree(d)
 
 
 def recover_source_files(pwd, tempdir, java_files):
