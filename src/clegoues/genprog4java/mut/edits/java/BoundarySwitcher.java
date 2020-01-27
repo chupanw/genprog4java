@@ -3,7 +3,6 @@ package clegoues.genprog4java.mut.edits.java;
 import clegoues.genprog4java.mut.EditHole;
 import clegoues.genprog4java.mut.holes.java.ExpHole;
 import clegoues.genprog4java.mut.holes.java.JavaLocation;
-import clegoues.genprog4java.mut.varexc.VarexCGlobal;
 import org.eclipse.jdt.core.dom.*;
 import org.eclipse.jdt.core.dom.rewrite.ASTRewrite;
 
@@ -46,7 +45,9 @@ public class BoundarySwitcher extends JavaEditOperation {
         ife.setExpression(getNextFieldAccess(ife));
         ife.setThenExpression(newExpr);
         ife.setElseExpression(locationExprCopy);
-        applyEditAndUpdateNodeStore(rewriter, ife, nodeStore, locationExpr, locationExprCopy);
+        ParenthesizedExpression pe = rewriter.getAST().newParenthesizedExpression();
+        pe.setExpression(ife);
+        applyEditAndUpdateNodeStore(rewriter, pe, nodeStore, locationExpr, locationExprCopy);
     }
 
     @Override

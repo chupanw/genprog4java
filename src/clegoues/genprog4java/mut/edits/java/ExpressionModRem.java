@@ -1,15 +1,13 @@
 package clegoues.genprog4java.mut.edits.java;
 
-import java.util.HashMap;
-
+import clegoues.genprog4java.mut.EditHole;
+import clegoues.genprog4java.mut.holes.java.ExpChoiceHole;
 import clegoues.genprog4java.mut.holes.java.ExpHole;
+import clegoues.genprog4java.mut.holes.java.JavaLocation;
 import org.eclipse.jdt.core.dom.*;
 import org.eclipse.jdt.core.dom.rewrite.ASTRewrite;
 
-import clegoues.genprog4java.mut.EditHole;
-import clegoues.genprog4java.mut.Mutation;
-import clegoues.genprog4java.mut.holes.java.ExpChoiceHole;
-import clegoues.genprog4java.mut.holes.java.JavaLocation;
+import java.util.HashMap;
 
 public class ExpressionModRem extends ExpressionReplacer {
 
@@ -57,7 +55,10 @@ public class ExpressionModRem extends ExpressionReplacer {
 		ternaryExp.setThenExpression(newCondition);
 		ternaryExp.setElseExpression(newLocationExp);
 
-		applyEditAndUpdateNodeStore(rewriter, ternaryExp, nodeStore, locationExp, newLocationExp);
+		ParenthesizedExpression pe = rewriter.getAST().newParenthesizedExpression();
+		pe.setExpression(ternaryExp);
+
+		applyEditAndUpdateNodeStore(rewriter, pe, nodeStore, locationExp, newLocationExp);
 	}
 
 	@Override

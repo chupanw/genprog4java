@@ -3,10 +3,7 @@ package clegoues.genprog4java.mut.edits.java;
 import clegoues.genprog4java.mut.EditHole;
 import clegoues.genprog4java.mut.holes.java.ExpChoiceHole;
 import clegoues.genprog4java.mut.holes.java.JavaLocation;
-import org.eclipse.jdt.core.dom.ASTNode;
-import org.eclipse.jdt.core.dom.ConditionalExpression;
-import org.eclipse.jdt.core.dom.Expression;
-import org.eclipse.jdt.core.dom.InfixExpression;
+import org.eclipse.jdt.core.dom.*;
 import org.eclipse.jdt.core.dom.rewrite.ASTRewrite;
 
 import java.util.HashMap;
@@ -70,7 +67,10 @@ public class ExpressionModAdd extends ExpressionReplacer {
 		ternaryExp.setThenExpression(newExpression);
 		ternaryExp.setElseExpression(newLocationExp);
 
-		applyEditAndUpdateNodeStore(rewriter, ternaryExp, nodeStore, locationExp, newLocationExp);
+		ParenthesizedExpression pe = rewriter.getAST().newParenthesizedExpression();
+		pe.setExpression(ternaryExp);
+
+		applyEditAndUpdateNodeStore(rewriter, pe, nodeStore, locationExp, newLocationExp);
 	}
 
 	@Override
