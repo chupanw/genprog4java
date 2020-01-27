@@ -2,7 +2,6 @@ package clegoues.genprog4java.Search;
 
 import clegoues.genprog4java.fitness.Fitness;
 import clegoues.genprog4java.mut.EditOperation;
-import clegoues.genprog4java.rep.JavaRepresentation;
 import clegoues.genprog4java.rep.MergedRepresentation;
 import clegoues.genprog4java.rep.Representation;
 
@@ -75,6 +74,11 @@ public class GeneticProgramming<G extends EditOperation> extends Search<G>{
 				this.noteSuccess(item, original, 0);
 				if(!continueSearch) {
 					throw new RepairFoundException();
+				}
+			}
+			if (item instanceof MergedRepresentation) {
+				if (!((MergedRepresentation) item).checkMerged()) {
+					System.err.println("Something is wrong in the merged code");
 				}
 			}
 		}

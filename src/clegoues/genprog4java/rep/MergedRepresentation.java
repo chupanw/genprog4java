@@ -1,6 +1,9 @@
 package clegoues.genprog4java.rep;
 
 import clegoues.genprog4java.Search.Population;
+import clegoues.genprog4java.fitness.Fitness;
+import clegoues.genprog4java.fitness.FitnessValue;
+import clegoues.genprog4java.fitness.TestCase;
 import clegoues.genprog4java.java.ClassInfo;
 import clegoues.genprog4java.mut.EditOperation;
 import clegoues.genprog4java.mut.MethodCutter;
@@ -8,9 +11,7 @@ import clegoues.genprog4java.mut.edits.java.JavaEditOperation;
 import clegoues.genprog4java.mut.holes.java.JavaLocation;
 import clegoues.genprog4java.mut.varexc.VarexCGlobal;
 import org.apache.commons.lang3.tuple.Pair;
-import org.eclipse.jdt.core.dom.AST;
-import org.eclipse.jdt.core.dom.ASTNode;
-import org.eclipse.jdt.core.dom.CompilationUnit;
+import org.eclipse.jdt.core.dom.*;
 import org.eclipse.jdt.core.dom.rewrite.ASTRewrite;
 import org.eclipse.jface.text.BadLocationException;
 import org.eclipse.jface.text.Document;
@@ -53,6 +54,7 @@ public class MergedRepresentation extends JavaRepresentation {
     protected ArrayList<Pair<ClassInfo, String>> internalComputeSourceBuffers() {
         sortGenome();
         collectCompilableEdits();
+        excludeEdits();
         ArrayList<Pair<ClassInfo, String>> retVal = new ArrayList<Pair<ClassInfo, String>>();
         for (Map.Entry<ClassInfo, String> pair : sourceInfo.getOriginalSource().entrySet()) {
             ClassInfo ci = pair.getKey();
@@ -108,6 +110,143 @@ public class MergedRepresentation extends JavaRepresentation {
                 }
             }
         }
+    }
+
+    /**
+     * Exclude certain types of edits that can cause compilation issues when encoded as if statements
+     *
+     * this() calls (i.e., calls to other constructors)
+     * super() calls (i.e., calls to parent class' constructor)
+     *
+     */
+    private void excludeEdits() {
+        HashSet<EditOperation> toRemove = new HashSet<>();
+        for (EditOperation e : compilableEdits) {
+            ASTNode code = ((JavaLocation) e.getLocation()).getCodeElement();
+            if (code instanceof ConstructorInvocation || code instanceof SuperConstructorInvocation) {
+                exclude(toRemove, e);
+            }
+            else if (code instanceof ExpressionStatement) {
+                Expression expression = ((ExpressionStatement) code).getExpression();
+                if (isAssignment2Final(expression))
+                    exclude(toRemove, e);
+            }
+            else if (code instanceof Assignment) {
+                if (isAssignment2Final((Expression) code))
+                    exclude(toRemove, e);
+            }
+        }
+        compilableEdits.removeAll(toRemove);
+    }
+
+    private void exclude(Set<EditOperation> set, EditOperation e) {
+        logger.info("Excluding " + e.toString());
+        set.add(e);
+    }
+
+    private boolean isAssignment2Final(Expression expression) {
+        if (expression instanceof Assignment) {
+            Assignment assignment = (Assignment) expression;
+            Expression left = assignment.getLeftHandSide();
+            if (left instanceof FieldAccess) {
+                return isFinalField(((FieldAccess) left).getName());
+            }
+        }
+        return false;
+    }
+
+    private boolean isFinalField(SimpleName name) {
+        TypeDeclaration typeDecl = getClassDecl(name);
+        FieldDeclaration[] fields = typeDecl.getFields();
+        for (FieldDeclaration f : fields) {
+            if (!Modifier.isFinal(f.getModifiers()))
+                continue;
+            List<VariableDeclarationFragment> variables = f.fragments();
+            for (VariableDeclarationFragment vdf : variables) {
+                if (vdf.getName().getIdentifier().equals(name.getIdentifier()))
+                    return true;
+            }
+        }
+        return false;
+    }
+
+    private TypeDeclaration getClassDecl(ASTNode node) {
+        if (node instanceof TypeDeclaration)
+            return (TypeDeclaration) node;
+        else {
+            ASTNode parent = node.getParent();
+            if (parent == null)
+                throw new RuntimeException("Unexpected AST: \n" + node.toString());
+            else
+                return getClassDecl(parent);
+        }
+    }
+
+    /**
+     * Verify test results with pos.tests and neg.tests, similar to sanity check
+     *
+     * @return  true if check succeeds
+     */
+    public boolean checkMerged() {
+        long startTime = System.currentTimeMillis();
+        logger.info("Merge check: checking test results of the merged code...");
+        if (!this.compile(this.getVariantFolder(), this.getVariantFolder())) {
+            logger.error("Merge check: " + this.getVariantFolder()
+                    + " does not compile.");
+            return false;
+        }
+        int testNum = 1;
+
+        ArrayList<TestCase> passingTests = new ArrayList<TestCase>();
+        // make list of passing files (sanitizing out of scope tests)
+        int testsOutOfScope = 0;
+        int testNumber = 0;
+        for (TestCase posTest : Fitness.positiveTests) {
+            testNumber++;
+            logger.info("Merge check: checking test number " + testNumber + " out of " + Fitness.positiveTests.size());
+            FitnessValue res = this.internalTestCase(
+                    this.getVariantFolder(),
+                    this.getVariantFolder(), posTest, false);
+            if (!res.isAllPassed()) {
+                testsOutOfScope++;
+                logger.info(testsOutOfScope + " tests out of scope so far, out of " + Fitness.positiveTests.size());
+                logger.error("Merge check: "
+                        + this.getVariantFolder()
+                        + " failed positive test " + posTest.getTestName());
+                return false;
+            } else {
+                passingTests.add(posTest);
+            }
+            testNum++;
+        }
+        Fitness.positiveTests = passingTests;
+        testNum = 1;
+        if (passingTests.size() < 1) {
+            logger.error("Merge check: no positive tests pass.");
+            return false;
+        }
+
+        //print to a file only the tests in scope
+        Fitness.printTestsInScope(passingTests);
+
+        testNum = 1;
+        for (TestCase negTest : Fitness.negativeTests) {
+            logger.info("\tn" + testNum + ": ");
+            FitnessValue res = this.internalTestCase(
+                    this.getVariantFolder(),
+                    this.getVariantFolder(), negTest, false);
+            if (res.isAllPassed()) {
+                logger.error("Merge check: "
+                        + this.getVariantFolder()
+                        + " passed negative test " + negTest.toString());
+                return false;
+            }
+            testNum++;
+        }
+        this.updated();
+        logger.info("Merge check completed (time taken = "
+                + (System.currentTimeMillis() - startTime) + ")");
+        return true;
     }
 
     private void sortGenome() {
