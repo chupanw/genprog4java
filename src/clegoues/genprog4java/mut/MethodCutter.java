@@ -64,6 +64,7 @@ public class MethodCutter {
     private void processClass(TypeDeclaration classDecl) {
         MethodDeclaration[] methodDecls = classDecl.getMethods();
         for (MethodDeclaration m : methodDecls) {
+            if (m.isConstructor()) continue;
             processMethod(classDecl, m);
         }
     }
