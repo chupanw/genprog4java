@@ -33,17 +33,16 @@
 
 package clegoues.util;
 
+import clegoues.genprog4java.main.Configuration;
+import org.apache.commons.lang3.tuple.Pair;
+import org.apache.log4j.Logger;
+
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
-
-import org.apache.commons.lang3.tuple.Pair;
-import org.apache.log4j.Logger;
-
-import clegoues.genprog4java.main.Configuration;
 
 public class GlobalUtils {
 	// range is inclusive!
@@ -137,7 +136,7 @@ public class GlobalUtils {
 		}
 		catch (IOException e) {
 			logger.error("Exception occurred executing command: " + commandToRun); 
-			logger.error(e.getStackTrace());
+			logger.error(e.toString());
 			return false;
 		}	
 		return true;

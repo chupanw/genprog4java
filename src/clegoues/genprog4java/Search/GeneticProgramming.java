@@ -79,6 +79,7 @@ public class GeneticProgramming<G extends EditOperation> extends Search<G>{
 			if (item instanceof MergedRepresentation) {
 				if (!((MergedRepresentation) item).checkMerged()) {
 					System.err.println("Something is wrong in the merged code");
+					System.exit(2);
 				}
 			}
 		}
