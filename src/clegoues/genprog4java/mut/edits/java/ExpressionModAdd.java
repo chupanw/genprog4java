@@ -61,7 +61,8 @@ public class ExpressionModAdd extends ExpressionReplacer {
 		InfixExpression newExpression = rewriter.getAST().newInfixExpression();
 		newExpression.setOperator(newOperator);
 		newExpression.setLeftOperand((Expression) rewriter.createCopyTarget(locationExp));
-		newExpression.setRightOperand((Expression) rewriter.createCopyTarget(newExpCode));
+		Expression rightOp = (Expression) ASTNode.copySubtree(rewriter.getAST(), newExpCode);
+		newExpression.setRightOperand(rightOp);
 
 		ternaryExp.setExpression(getNextFieldAccess(ternaryExp));
 		ternaryExp.setThenExpression(newExpression);
