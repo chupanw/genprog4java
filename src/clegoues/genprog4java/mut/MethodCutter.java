@@ -79,6 +79,10 @@ public class MethodCutter {
      * @param methodDecl
      */
     private MethodDeclaration processMethod(TypeDeclaration classDecl, MethodDeclaration methodDecl) {
+        if (methodDecl.getBody() == null) {
+            // abstract methods
+            return methodDecl;
+        }
         List<Statement> statements = methodDecl.getBody().statements();
         Statement cp = findCutPoint(statements);
         if (cp != null) {
