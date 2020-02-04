@@ -135,6 +135,9 @@ public class MergedRepresentation extends JavaRepresentation {
                 if (isAssignment2Final((Expression) code))
                     exclude(toRemove, e);
             }
+            else if (code instanceof VariableDeclarationStatement) {
+                exclude(toRemove, e);
+            }
         }
         compilableEdits.removeAll(toRemove);
     }
