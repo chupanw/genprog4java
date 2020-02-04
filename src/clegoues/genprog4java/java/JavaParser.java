@@ -33,18 +33,17 @@
 
 package clegoues.genprog4java.java;
 
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedList;
-import java.util.Map;
-
+import clegoues.genprog4java.main.Configuration;
 import org.eclipse.jdt.core.JavaCore;
 import org.eclipse.jdt.core.dom.AST;
 import org.eclipse.jdt.core.dom.ASTNode;
 import org.eclipse.jdt.core.dom.ASTParser;
 import org.eclipse.jdt.core.dom.CompilationUnit;
 
-import clegoues.genprog4java.main.Configuration;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.LinkedList;
+import java.util.Map;
 
 /**
  * Parses a single java file, and delegates to a semantic info visitor the goal
@@ -132,7 +131,7 @@ public class JavaParser
 	public void parse(String file, String[] libs)
 	{
 		int parserVersion = AST.JLS8;
-		if(Configuration.sourceVersion != "1.8") {
+		if(!Configuration.sourceVersion.contentEquals("1.8")) {
 			parserVersion = AST.JLS4;
 		}
 		ASTParser parser = ASTParser.newParser(parserVersion);

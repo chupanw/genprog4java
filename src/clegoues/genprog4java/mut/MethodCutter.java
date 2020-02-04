@@ -219,13 +219,13 @@ public class MethodCutter {
         m.setName(ast.newSimpleName(mName));
         m.setBody(mBody);
 
-        for (Object o : methodDecl.parameters()) {
-            SingleVariableDeclaration svd = (SingleVariableDeclaration) o;
-            SingleVariableDeclaration svd2 = ast.newSingleVariableDeclaration();
-            svd2.setType((Type) ASTNode.copySubtree(ast, svd.getType()));
-            svd2.setName(ast.newSimpleName(svd.getName().getIdentifier()));
-            m.parameters().add(svd2);
-            mi.arguments().add(ast.newSimpleName(svd.getName().getIdentifier()));
+        HashSet<Parameter> parameters = getParameters(methodDecl);
+        for (Parameter p : parameters) {
+            SingleVariableDeclaration svd = ast.newSingleVariableDeclaration();
+            svd.setType(p.getType());
+            svd.setName(p.getName());
+            m.parameters().add(svd);
+            mi.arguments().add(p.getName());
         }
 
         addStmtsToBlock(mBody, statements);
@@ -379,14 +379,14 @@ public class MethodCutter {
                 VariableDeclarationStatement vd = (VariableDeclarationStatement) s;
                 Type t = vd.getType();
                 for (Object f : vd.fragments()) {
-                    Parameter p = new Parameter(t, ((VariableDeclarationFragment) f).getName(), ast);
+                    Parameter p = new Parameter(t, ((VariableDeclarationFragment) f).getName(), ast, false);
                     res.add(p);
                 }
             } else if (s instanceof ExpressionStatement && ((ExpressionStatement) s).getExpression() instanceof VariableDeclarationExpression) {
                 VariableDeclarationExpression ve = (VariableDeclarationExpression)((ExpressionStatement) s).getExpression();
                 Type t = ve.getType();
                 for (Object f : ve.fragments()) {
-                    Parameter p = new Parameter(t, ((VariableDeclarationFragment) f).getName(), ast);
+                    Parameter p = new Parameter(t, ((VariableDeclarationFragment) f).getName(), ast, false);
                     res.add(p);
                 }
             }
@@ -399,7 +399,7 @@ public class MethodCutter {
         HashSet<Parameter> res = new HashSet<>();
         List<SingleVariableDeclaration> params = m.parameters();
         for (SingleVariableDeclaration p : params) {
-            res.add(new Parameter(p.getType(), p.getName(), ast));
+            res.add(new Parameter(p.getType(), p.getName(), ast, p.isVarargs()));
         }
         return res;
     }
@@ -408,14 +408,21 @@ public class MethodCutter {
         private Type type;
         private SimpleName name;
         private AST target;
-        Parameter(Type t, SimpleName n, AST target) {
+        private boolean isVarargs;
+        Parameter(Type t, SimpleName n, AST target, boolean isVarargs) {
             this.type = t;
             this.name = n;
             this.target = target;
+            this.isVarargs = isVarargs;
         }
 
         public Type getType() {
-            return (Type) ASTNode.copySubtree(target, type);
+            if (isVarargs) {
+                return target.newArrayType((Type) ASTNode.copySubtree(target, type));
+            }
+            else {
+                return (Type) ASTNode.copySubtree(target, type);
+            }
         }
 
         public SimpleName getName() {
