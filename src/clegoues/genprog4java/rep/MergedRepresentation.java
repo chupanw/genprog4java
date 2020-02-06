@@ -5,10 +5,12 @@ import clegoues.genprog4java.fitness.Fitness;
 import clegoues.genprog4java.fitness.FitnessValue;
 import clegoues.genprog4java.fitness.TestCase;
 import clegoues.genprog4java.java.ClassInfo;
+import clegoues.genprog4java.mut.EditHole;
 import clegoues.genprog4java.mut.EditOperation;
 import clegoues.genprog4java.mut.MethodCutter;
 import clegoues.genprog4java.mut.edits.java.JavaEditOperation;
 import clegoues.genprog4java.mut.holes.java.JavaLocation;
+import clegoues.genprog4java.mut.holes.java.StatementHole;
 import clegoues.genprog4java.mut.varexc.VarexCGlobal;
 import org.apache.commons.lang3.tuple.Pair;
 import org.eclipse.jdt.core.dom.*;
@@ -123,6 +125,7 @@ public class MergedRepresentation extends JavaRepresentation {
         HashSet<EditOperation> toRemove = new HashSet<>();
         for (EditOperation e : compilableEdits) {
             ASTNode code = ((JavaLocation) e.getLocation()).getCodeElement();
+            EditHole fixHole = e.getHoleCode();
             if (code instanceof ConstructorInvocation || code instanceof SuperConstructorInvocation) {
                 exclude(toRemove, e);
             }
@@ -135,8 +138,11 @@ public class MergedRepresentation extends JavaRepresentation {
                 if (isAssignment2Final((Expression) code))
                     exclude(toRemove, e);
             }
-            else if (code instanceof VariableDeclarationStatement) {
-                exclude(toRemove, e);
+            if (fixHole instanceof StatementHole) {
+                ASTNode fixStmt = ((StatementHole) fixHole).getCode();
+                if (fixStmt instanceof VariableDeclarationStatement) {
+                    exclude(toRemove, e);
+                }
             }
         }
         compilableEdits.removeAll(toRemove);
