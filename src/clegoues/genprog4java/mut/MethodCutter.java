@@ -159,7 +159,8 @@ public class MethodCutter {
         else {
             thenStmts.add(ifStmt.getThenStatement());
         }
-        thenStmts.add(last);
+        if (!isTerminalStmt(thenStmts.get(thenStmts.size() - 1)))
+            thenStmts.add(last);
         Block thenBlock = branch2Method(classDecl, methodDecl, thenStmts);
 
         // else branch
@@ -172,7 +173,8 @@ public class MethodCutter {
                 elseStmts.add(ifStmt.getElseStatement());
             }
         }
-        elseStmts.add(last);
+        if (elseStmts.isEmpty() || !isTerminalStmt(elseStmts.get(elseStmts.size() - 1)))
+            elseStmts.add(last);
         Block elseBlock = branch2Method(classDecl, methodDecl, elseStmts);
 
         IfStatement replacementIfStmt = ast.newIfStatement();
@@ -183,6 +185,10 @@ public class MethodCutter {
         rewriter.replace(ifStmt, replacementIfStmt, null);
 
         return methodDecl;
+    }
+
+    private boolean isTerminalStmt(Statement s) {
+        return s instanceof ReturnStatement || s instanceof ThrowStatement || s instanceof BreakStatement || s instanceof ContinueStatement;
     }
 
     private List<Statement> getStmtsFromBlock(Block block) {
@@ -234,15 +240,15 @@ public class MethodCutter {
         writeMethod2Class(classDecl, processed);
 
         Block branch = ast.newBlock();
-        Statement last = statements.get(statements.size() - 1);
-        if (last instanceof ReturnStatement) {
+        Type retType = m.getReturnType2();
+        if (retType != null && retType.isPrimitiveType() && ((PrimitiveType) retType).getPrimitiveTypeCode() == PrimitiveType.VOID) {
+            ExpressionStatement expStmt = ast.newExpressionStatement(mi);
+            branch.statements().add(expStmt);
+        }
+        else {
             ReturnStatement retStmt = ast.newReturnStatement();
             retStmt.setExpression(mi);
             branch.statements().add(retStmt);
-        }
-        else {
-            ExpressionStatement expStmt = ast.newExpressionStatement(mi);
-            branch.statements().add(expStmt);
         }
         return branch;
     }
