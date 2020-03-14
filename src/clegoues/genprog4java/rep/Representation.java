@@ -39,7 +39,9 @@ import clegoues.genprog4java.java.ClassInfo;
 import clegoues.genprog4java.localization.Localization;
 import clegoues.genprog4java.localization.Location;
 import clegoues.genprog4java.localization.UnexpectedCoverageResultException;
+import clegoues.genprog4java.main.Configuration;
 import clegoues.genprog4java.mut.*;
+import clegoues.genprog4java.mut.edits.java.JavaSavedEdit;
 import org.apache.commons.exec.CommandLine;
 import org.apache.commons.lang3.builder.HashCodeBuilder;
 import org.apache.commons.lang3.tuple.Pair;
@@ -49,10 +51,7 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 // it's not clear that this EditOperation thing is a good choice because 
 // it basically forces the patch representation.  Possibly it's flexible and the naming scheme is 
@@ -137,12 +136,22 @@ Comparable<Representation<G>> {
 	@Override
 	public int hashCode() {
 		if(myHashCode < 0) {
-		HashCodeBuilder builder = new HashCodeBuilder();
-		List<Pair<ClassInfo, String>> sourceBuffers = computeSourceBuffers();
-		for (Pair<ClassInfo, String> ele : sourceBuffers) {
-			builder.append(ele.getRight());
-		}
-		myHashCode = builder.toHashCode();
+			HashCodeBuilder builder = new HashCodeBuilder();
+			if (Configuration.editMode == Configuration.EditMode.EXISTING) {
+				List<G> genome = this.getGenome();
+				for (G e : genome) {
+					assert e instanceof JavaSavedEdit : "Only JavaSavedEdit is allowed";
+					JavaSavedEdit edit = (JavaSavedEdit) e;
+					builder.append(edit.editString + edit.getVariantFolder());
+				}
+			}
+			else {
+				List<Pair<ClassInfo, String>> sourceBuffers = computeSourceBuffers();
+				for (Pair<ClassInfo, String> ele : sourceBuffers) {
+					builder.append(ele.getRight());
+				}
+			}
+			myHashCode = builder.toHashCode();
 		}
 		return myHashCode;
 	}
@@ -150,22 +159,34 @@ Comparable<Representation<G>> {
 	@Override
 	public boolean equals(Object that) {
 		if (that instanceof Representation) {
-			List<Pair<ClassInfo, String>> thisBuffers = computeSourceBuffers();
-			List<Pair<ClassInfo, String>> thatBuffers = ((Representation) that).computeSourceBuffers();
-			if (thisBuffers.size() == thatBuffers.size()) {
-				HashMap<ClassInfo, String> thisMap = new HashMap<>();
-				for (Pair<ClassInfo, String> thisEle : thisBuffers) {
-					thisMap.put(thisEle.getLeft(), thisEle.getRight());
-				}
-				for (Pair<ClassInfo, String> thatEle : thatBuffers) {
-					String s = thisMap.get(thatEle.getLeft());
-					if (s == null || !s.equals(thatEle.getRight())) {
-						return false;
+		    if (Configuration.editMode == Configuration.EditMode.EXISTING) {
+		    	Set<JavaSavedEdit> thisGenome = new HashSet<>((List<JavaSavedEdit>) this.getGenome());
+		    	List<JavaSavedEdit> thatGenome = (List<JavaSavedEdit>) ((Representation) that).getGenome();
+		    	for (JavaSavedEdit edit : thatGenome) {
+		    		if (!thisGenome.contains(edit)) {
+		    			return false;
 					}
 				}
 				return true;
-			} else {
-				return false;
+			}
+		    else {
+				List<Pair<ClassInfo, String>> thisBuffers = computeSourceBuffers();
+				List<Pair<ClassInfo, String>> thatBuffers = ((Representation) that).computeSourceBuffers();
+				if (thisBuffers.size() == thatBuffers.size()) {
+					HashMap<ClassInfo, String> thisMap = new HashMap<>();
+					for (Pair<ClassInfo, String> thisEle : thisBuffers) {
+						thisMap.put(thisEle.getLeft(), thisEle.getRight());
+					}
+					for (Pair<ClassInfo, String> thatEle : thatBuffers) {
+						String s = thisMap.get(thatEle.getLeft());
+						if (s == null || !s.equals(thatEle.getRight())) {
+							return false;
+						}
+					}
+					return true;
+				} else {
+					return false;
+				}
 			}
 		} else {
 			return false;

@@ -34,37 +34,30 @@
 package clegoues.genprog4java.Search;
 
 // oneday FIXME: lowercase the package name because it annoys me...
-import static clegoues.util.ConfigurationBuilder.BOOLEAN;
-import static clegoues.util.ConfigurationBuilder.DOUBLE;
-import static clegoues.util.ConfigurationBuilder.INT;
-import static clegoues.util.ConfigurationBuilder.STRING;
-
-import java.io.File;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.HashMap;
-import java.util.LinkedList;
-import java.util.List;
-import java.util.Map;
-import java.util.Set;
-import java.util.TreeSet;
-
-import org.apache.commons.lang3.tuple.Pair;
-import org.apache.log4j.Logger;
 
 import clegoues.genprog4java.fitness.Fitness;
 import clegoues.genprog4java.localization.Localization;
 import clegoues.genprog4java.localization.Location;
 import clegoues.genprog4java.main.Configuration;
-import clegoues.genprog4java.mut.EditHole;
 import clegoues.genprog4java.mut.EditOperation;
 import clegoues.genprog4java.mut.Mutation;
 import clegoues.genprog4java.mut.WeightedHole;
 import clegoues.genprog4java.mut.WeightedMutation;
+import clegoues.genprog4java.mut.edits.java.JavaSavedEdit;
+import clegoues.genprog4java.rep.JavaRepresentation;
 import clegoues.genprog4java.rep.Representation;
 import clegoues.util.ConfigurationBuilder;
 import clegoues.util.GlobalUtils;
+import org.apache.commons.lang3.tuple.Pair;
+import org.apache.log4j.Logger;
+
+import java.io.File;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.LinkedList;
+import java.util.List;
+
+import static clegoues.util.ConfigurationBuilder.*;
 
 @SuppressWarnings("rawtypes")
 public abstract class Search<G extends EditOperation> {
@@ -244,7 +237,20 @@ public abstract class Search<G extends EditOperation> {
 	protected abstract Population<G> initialize(Representation<G> original,
 			Population<G> incomingPopulation) throws RepairFoundException, GiveUpException;
 
-	/*
+	public void mutateWithPool(Representation<G> variant) throws GiveUpException {
+	    assert Configuration.editMode == Configuration.EditMode.EXISTING : "EXISTING mode only";
+	    assert variant instanceof JavaRepresentation : "Only JavaRepresentation is supported in EXISTING mode";
+		JavaRepresentation thisVariant = (JavaRepresentation) variant;
+	    boolean found = false;
+		JavaSavedEdit next = null;
+	    while(!found) {
+	    	next = thisVariant.editFactory.pool.pickOne();
+	    	found = !variant.getGenome().contains(next);
+		}
+	    assert next != null : "Couldn't find any usable JavaSavedEdit";
+	    thisVariant.getGenome().add(next);
+	}
+	/**
 	 * 
 	 * (** randomly chooses an atomic mutation operator, instantiates it as
 	 * necessary (selecting an insertion source, for example), and applies it to
@@ -252,8 +258,6 @@ public abstract class Search<G extends EditOperation> {
 	 * the node weights or the probabilities associated with each operator. If
 	 * applicable for the given experiment/representation, may use subatom
 	 * mutation.
-	 * 
-	 * @param test optional; force a mutation on every atom of the variant
 	 * 
 	 * @param variant individual to mutate
 	 * 

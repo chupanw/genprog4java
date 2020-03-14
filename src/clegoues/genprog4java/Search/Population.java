@@ -33,26 +33,17 @@
 
 package clegoues.genprog4java.Search;
 
-import static clegoues.util.ConfigurationBuilder.DOUBLE;
-import static clegoues.util.ConfigurationBuilder.INT;
-import static clegoues.util.ConfigurationBuilder.STRING;
-
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Comparator;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Properties;
-import java.util.TreeSet;
-
-import org.apache.log4j.Logger;
-
 import clegoues.genprog4java.fitness.Fitness;
 import clegoues.genprog4java.main.Configuration;
 import clegoues.genprog4java.mut.EditOperation;
 import clegoues.genprog4java.rep.Representation;
 import clegoues.util.ConfigurationBuilder;
 import clegoues.util.GlobalUtils;
+import org.apache.log4j.Logger;
+
+import java.util.*;
+
+import static clegoues.util.ConfigurationBuilder.*;
 
 public class Population<G extends EditOperation> implements Iterable<Representation<G>>{
 
@@ -195,7 +186,7 @@ public class Population<G extends EditOperation> implements Iterable<Representat
     individuals, if specified, and variant fitness if not.  Returns a subset
     of the population.  */
 	private Representation<G> selectOne() {
-		Collections.shuffle(population);
+		Collections.shuffle(population, Configuration.randomizer);
 		List<Representation<G>> pool = population.subList(0, tournamentK);
 		Comparator<Representation<G>> myComp = new Comparator<Representation<G>>() {
 			@Override

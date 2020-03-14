@@ -1,18 +1,22 @@
 package clegoues.genprog4java.mut.varexc;
 
-import org.eclipse.jdt.core.dom.*;
+import org.eclipse.jdt.core.dom.AST;
+import org.eclipse.jdt.core.dom.CompilationUnit;
+import org.eclipse.jdt.core.dom.ImportDeclaration;
+import org.eclipse.jdt.core.dom.TypeDeclaration;
 import org.eclipse.jdt.core.dom.rewrite.ASTRewrite;
 import org.eclipse.jdt.core.dom.rewrite.ITrackedNodePosition;
 import org.eclipse.jdt.core.dom.rewrite.ListRewrite;
 
-import java.util.HashSet;
+import java.util.LinkedHashSet;
+
 /**
  * Generate a class that contains all boolean options
  */
 public class VarexCGlobal {
     private static int methodCnt = 0;
 
-    private static HashSet<String> variantNames = new HashSet<>();
+    private static LinkedHashSet<String> variantNames = new LinkedHashSet<>();
     public static void addVariantName(String n) {
         variantNames.add(n);
     }

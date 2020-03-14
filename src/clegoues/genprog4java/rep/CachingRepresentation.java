@@ -33,34 +33,26 @@
 
 package clegoues.genprog4java.rep;
 
-import static clegoues.util.ConfigurationBuilder.BOOL_ARG;
-
-import java.io.ByteArrayOutputStream;
-import java.io.File;
-import java.io.IOException;
-import java.io.ObjectStreamException;
-import java.io.Serializable;
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-
-import org.apache.commons.exec.CommandLine;
-import org.apache.commons.exec.DefaultExecutor;
-import org.apache.commons.exec.ExecuteException;
-import org.apache.commons.exec.ExecuteWatchdog;
-import org.apache.commons.exec.PumpStreamHandler;
-import org.apache.commons.lang3.builder.HashCodeBuilder;
-import org.apache.commons.lang3.tuple.Pair;
-import org.apache.log4j.Logger;
-
-import clegoues.genprog4java.Search.GiveUpException;
 import clegoues.genprog4java.fitness.Fitness;
 import clegoues.genprog4java.fitness.FitnessValue;
 import clegoues.genprog4java.fitness.TestCase;
 import clegoues.genprog4java.java.ClassInfo;
 import clegoues.genprog4java.main.Configuration;
 import clegoues.genprog4java.mut.EditOperation;
+import clegoues.genprog4java.mut.edits.java.JavaEditOperation;
+import clegoues.genprog4java.mut.edits.java.JavaSavedEdit;
 import clegoues.util.ConfigurationBuilder;
+import org.apache.commons.exec.*;
+import org.apache.commons.lang3.tuple.Pair;
+import org.apache.log4j.Logger;
+
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
+
+import static clegoues.util.ConfigurationBuilder.BOOL_ARG;
 
 @SuppressWarnings("rawtypes")
 public abstract class CachingRepresentation<G extends EditOperation> extends
@@ -210,7 +202,7 @@ Representation<G>  {
 		if (this.alreadyCompiled == null) {
 			String newName = CachingRepresentation.newVariantFolder();
 			this.variantFolder = newName;
-			if (getGenome().size() == 1) {
+			if (Configuration.editMode == Configuration.EditMode.PRE_COMPUTE && getGenome().size() == 1) {
 			    getGenome().get(0).setVariantFolder(newName);
 			}
 			if (!this.compile(newName, newName)) {
@@ -228,8 +220,7 @@ Representation<G>  {
 			this.setFitness(0.0);
 			return compileFail;
 		}
-		// VarexC does not need fitness calculation, but we do need the above compilation
-		if (!doingCoverage) {
+		if (!doingCoverage && Configuration.editMode == Configuration.EditMode.PRE_COMPUTE) {
 			FitnessValue dummy = new FitnessValue();
 			dummy.setAllPassed(false);
 			return dummy;
@@ -359,9 +350,21 @@ Representation<G>  {
 		if (this.alreadyCompiled != null) {
 		    canCompile = alreadyCompiled.getLeft();
 		} else {
-			boolean result = this.internalCompile(sourceName, exeName);
-			this.alreadyCompiled =  Pair.of(result, exeName);
-			canCompile = result;
+			if (Configuration.editMode == Configuration.EditMode.EXISTING && this instanceof JavaRepresentation) {
+				JavaRepresentation thisRep = (JavaRepresentation) this;
+				boolean canEditsCompile = true;
+				for (JavaEditOperation edit : thisRep.getGenome()) {
+					assert edit instanceof JavaSavedEdit : "Should use JavaSavedEdit in EXISTING mode";
+					canEditsCompile = canEditsCompile && ((JavaSavedEdit) edit).canCompile;
+				}
+				this.alreadyCompiled = Pair.of(canEditsCompile, thisRep.editFactory.mergedVariant);
+				this.variantFolder = thisRep.editFactory.mergedVariant;
+				canCompile = canEditsCompile;
+			} else {
+				boolean result = this.internalCompile(sourceName, exeName);
+				this.alreadyCompiled =  Pair.of(result, exeName);
+				canCompile = result;
+			}
 		}
 		return canCompile;
 	}

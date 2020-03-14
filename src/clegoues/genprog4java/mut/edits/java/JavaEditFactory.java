@@ -1,39 +1,25 @@
 package clegoues.genprog4java.mut.edits.java;
 
-import java.util.*;
-import java.util.Map.Entry;
-
-import org.apache.log4j.Logger;
-import org.eclipse.jdt.core.dom.ASTNode;
-import org.eclipse.jdt.core.dom.Block;
-import org.eclipse.jdt.core.dom.BreakStatement;
-import org.eclipse.jdt.core.dom.ConstructorInvocation;
-import org.eclipse.jdt.core.dom.Expression;
-import org.eclipse.jdt.core.dom.IMethodBinding;
-import org.eclipse.jdt.core.dom.MethodDeclaration;
-import org.eclipse.jdt.core.dom.ReturnStatement;
-import org.eclipse.jdt.core.dom.SimpleName;
-import org.eclipse.jdt.core.dom.Statement;
-import org.eclipse.jdt.core.dom.SuperConstructorInvocation;
-import org.eclipse.jdt.core.dom.ThrowStatement;
-import org.eclipse.jdt.core.dom.Type;
-
 import clegoues.genprog4java.java.ASTUtils;
 import clegoues.genprog4java.java.JavaStatement;
 import clegoues.genprog4java.localization.Localization;
 import clegoues.genprog4java.localization.Location;
+import clegoues.genprog4java.main.Configuration;
 import clegoues.genprog4java.mut.EditHole;
 import clegoues.genprog4java.mut.Mutation;
 import clegoues.genprog4java.mut.WeightedHole;
-import clegoues.genprog4java.mut.holes.java.ExpChoiceHole;
-import clegoues.genprog4java.mut.holes.java.ExpHole;
-import clegoues.genprog4java.mut.holes.java.JavaHole;
-import clegoues.genprog4java.mut.holes.java.JavaLocation;
-import clegoues.genprog4java.mut.holes.java.MethodInfoHole;
-import clegoues.genprog4java.mut.holes.java.StatementHole;
-import clegoues.genprog4java.mut.holes.java.SubExpsHole;
+import clegoues.genprog4java.mut.holes.java.*;
+import clegoues.genprog4java.rep.CachingRepresentation;
 import clegoues.genprog4java.rep.JavaRepresentation;
 import clegoues.genprog4java.rep.WeightedAtom;
+import org.apache.log4j.Logger;
+import org.eclipse.jdt.core.dom.*;
+
+import java.io.File;
+import java.nio.file.FileSystems;
+import java.nio.file.Path;
+import java.util.*;
+import java.util.Map.Entry;
 
 @SuppressWarnings("rawtypes")
 public class JavaEditFactory {
@@ -42,9 +28,43 @@ public class JavaEditFactory {
 
 	protected Logger logger = Logger.getLogger(JavaEditOperation.class);
 
+	public JavaEditPool pool;
+	public String mergedVariant = "";
+	public static Set<String> missedMutations = new HashSet<>();
+
+	public JavaEditFactory() {
+	    switch (Configuration.editMode) {
+			case GENPROG:
+			case PRE_COMPUTE:
+				pool = new JavaEditPool();
+				break;
+			case EXISTING:
+				Path jsonPath = FileSystems.getDefault().getPath(Configuration.outputDir, Configuration.editSerFile);
+				pool = JavaEditPool.deserialize(jsonPath);
+				mergedVariant = findMergedVariant();
+		}
+	}
+
+	/**
+	 * Find the merged variant folder, which should be the folder with the largest postfix number
+     *
+	 * See {@link CachingRepresentation#newVariantFolder()} for variant folder naming conventions.
+	 */
+	private String findMergedVariant() {
+		File outputDir = new File(Configuration.outputDir);
+		int max = 0;
+		for (File dir : Objects.requireNonNull(outputDir.listFiles())) {
+			if (dir.isDirectory() && dir.getName().startsWith("variant")) {
+				int i = Integer.parseInt(dir.getName().substring("variant".length()));
+				if (i > max) max = i;
+			}
+		}
+		return "variant" + max;
+	}
+
 	public JavaEditOperation makeEdit(Mutation edit, Location dst, EditHole sources) {
 		switch(edit) {
-		case DELETE: 
+		case DELETE:
 			return new JavaDeleteOperation((JavaLocation) dst);
 		case OFFBYONE:
 			return new OffByOneOperation((JavaLocation) dst, sources);

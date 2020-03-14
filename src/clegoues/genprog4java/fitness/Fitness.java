@@ -33,20 +33,17 @@
 
 package clegoues.genprog4java.fitness;
 
-import static clegoues.util.ConfigurationBuilder.BOOLEAN;
-import static clegoues.util.ConfigurationBuilder.DOUBLE;
-import static clegoues.util.ConfigurationBuilder.STRING;
+import clegoues.genprog4java.main.Configuration;
+import clegoues.genprog4java.rep.Representation;
+import clegoues.util.ConfigurationBuilder;
+import junit.framework.Test;
+import junit.framework.TestSuite;
+import org.apache.commons.lang3.tuple.Pair;
+import org.apache.log4j.Logger;
+import org.junit.runner.Description;
+import org.junit.runner.Request;
 
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
-import java.io.FileReader;
-import java.io.FileWriter;
-import java.io.IOException;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
-import java.io.PrintWriter;
+import java.io.*;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
@@ -56,24 +53,10 @@ import java.net.URLClassLoader;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedList;
 import java.util.List;
-import java.util.Map;
 import java.util.regex.Pattern;
 
-import org.apache.commons.lang3.tuple.Pair;
-import org.apache.log4j.Logger;
-import org.junit.runner.Description;
-import org.junit.runner.Request;
-
-import clegoues.genprog4java.main.Configuration;
-import clegoues.genprog4java.mut.Mutation;
-import clegoues.genprog4java.mut.WeightedMutation;
-import clegoues.genprog4java.rep.Representation;
-import clegoues.util.ConfigurationBuilder;
-import junit.framework.Test;
-import junit.framework.TestSuite;
+import static clegoues.util.ConfigurationBuilder.*;
 
 /**
  * This class manages fitness evaluation for a variant of an arbitrary {@link clegoues.genprog4java.rep.Representation}.
@@ -429,7 +412,7 @@ public class Fitness {
 	private boolean singleTestCasePass(Representation rep, TestCase test) {
 		HashMap<TestCase, FitnessValue> thisVariantsFitness = null;
 		// FIXME: things would be better if the fitness cache were actually keyed on rep and not integers.  Also why on earth
-		// is the following "containsKey" typesafe without the hashCode()??? I hate Java.
+		// is the following "containsKey" typesafe without the hashCode()??? I hate Java. (totally agree)
 		if(fitnessCache.containsKey(rep.hashCode())) {
 			thisVariantsFitness = fitnessCache.get(rep.hashCode());
 			if (thisVariantsFitness.containsKey(test)) {

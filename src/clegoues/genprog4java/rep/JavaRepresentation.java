@@ -71,7 +71,7 @@ CachingRepresentation<JavaEditOperation> {
 
 	protected Logger logger = Logger.getLogger(JavaRepresentation.class);
 
-	private JavaEditFactory editFactory = new JavaEditFactory();
+	public JavaEditFactory editFactory = new JavaEditFactory();
 
 	public static final ConfigurationBuilder.RegistryToken token =
 			ConfigurationBuilder.getToken();
@@ -323,10 +323,19 @@ CachingRepresentation<JavaEditOperation> {
 			command.addArgument("-client");
 		}
 
-		command.addArgument("clegoues.genprog4java.fitness.JUnitTestRunner");
+		if (Configuration.editMode == Configuration.EditMode.EXISTING) {
+			command.addArgument("clegoues.genprog4java.fitness.JUnitTestRunnerWithPool");
+		} else {
+			command.addArgument("clegoues.genprog4java.fitness.JUnitTestRunner");
+		}
 
 		command.addArgument(test.toString());
-		//logger.info("Command: " + command.toString());
+
+		if (Configuration.editMode == Configuration.EditMode.EXISTING) {
+		    for (JavaEditOperation e : this.getGenome()) {
+		    	command.addArgument(e.getVariantFolder());
+			}
+		}
 		return command;
 
 	}

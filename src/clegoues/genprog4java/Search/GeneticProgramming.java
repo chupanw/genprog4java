@@ -1,11 +1,12 @@
 package clegoues.genprog4java.Search;
 
 import clegoues.genprog4java.fitness.Fitness;
+import clegoues.genprog4java.main.Configuration;
 import clegoues.genprog4java.mut.EditOperation;
 import clegoues.genprog4java.rep.MergedRepresentation;
 import clegoues.genprog4java.rep.Representation;
 
-import java.util.HashSet;
+import java.util.LinkedHashSet;
 
 public class GeneticProgramming<G extends EditOperation> extends Search<G>{
 	private int generationsRun = 0;
@@ -46,28 +47,40 @@ public class GeneticProgramming<G extends EditOperation> extends Search<G>{
 			initialPopulation.add(original.copy());
 			stillNeed--;
 		}
-		HashSet<Representation<G>> set = new HashSet<>();
-		int attempts = 0;
-		while (set.size() < stillNeed) {
-		    int oldSize = set.size();
-			Representation<G> newItem = original.copy();
-			attempts++;
-			this.mutate(newItem);
-			set.add(newItem);
-			if (oldSize != set.size())
-				System.out.println("Growing population " + set.size() + "/" + stillNeed);
-			if (attempts > stillNeed * 100) {
-				System.out.println("Stop growing after trying " + attempts + " times");
-				break;
+		if (Configuration.editMode == Configuration.EditMode.PRE_COMPUTE) {
+			LinkedHashSet<Representation<G>> set = new LinkedHashSet<>();
+			int attempts = 0;
+			while (set.size() < stillNeed) {
+				Representation<G> newItem = original.copy();
+				attempts++;
+				this.mutate(newItem);
+				set.add(newItem);
+				if (attempts > stillNeed * 100) {
+					System.out.println("Stop growing after trying " + attempts + " times");
+					break;
+				}
+			}
+			for (Representation<G> rep : set) {
+				initialPopulation.add(rep);
+			}
+			MergedRepresentation merged = MergedRepresentation.merge(initialPopulation);
+			initialPopulation.add((Representation) merged);
+		}
+		else if (Configuration.editMode == Configuration.EditMode.EXISTING) {
+			for (int i = 0; i < stillNeed; i++) {
+				Representation<G> newItem = original.copy();
+				this.mutateWithPool(newItem);
+				initialPopulation.add(newItem);
 			}
 		}
-		for (Representation<G> rep : set) {
-			initialPopulation.add(rep);
+		else {
+			for (int i = 0; i < stillNeed; i++) {
+				Representation<G> newItem = original.copy();
+				this.mutate(newItem);
+				initialPopulation.add(newItem);
+			}
 		}
-
-        initialPopulation.removeLast();
-        MergedRepresentation merged = MergedRepresentation.merge(initialPopulation);
-		initialPopulation.add((Representation) merged);
+		logger.info("Population size: " + initialPopulation.size());
 
 		for (Representation<G> item : initialPopulation) {
 			if (fitnessEngine.testFitness(0, item)) {
@@ -78,7 +91,7 @@ public class GeneticProgramming<G extends EditOperation> extends Search<G>{
 			}
 			if (item instanceof MergedRepresentation) {
 				if (!((MergedRepresentation) item).checkMerged()) {
-					System.err.println("Something is wrong in the merged code");
+					logger.error("Something is wrong in the merged code");
 					System.exit(2);
 				}
 			}
@@ -116,6 +129,10 @@ public class GeneticProgramming<G extends EditOperation> extends Search<G>{
 		assert (Search.generations >= 0);
 		Population<G> incomingPopulation = this.initialize(original,
 				initialPopulation);
+		if (Configuration.editMode == Configuration.EditMode.PRE_COMPUTE && Search.generations > 1) {
+			logger.info("Ignoring the remaining generations due to the PRE_COMPUTE mode");
+			System.exit(0);
+		}
 		int gen = 1;
 		while (gen < Search.generations) {
 			logger.info("search: generation" + gen);
@@ -129,7 +146,11 @@ public class GeneticProgramming<G extends EditOperation> extends Search<G>{
 			// step 3: mutation
 			for (Representation<G> item : incomingPopulation) {
 				Representation<G> newItem = original.copy();
-				this.mutate(item);
+				if (Configuration.editMode == Configuration.EditMode.EXISTING) {
+					this.mutateWithPool(item);
+				} else {
+					this.mutate(item);
+				}
 			}
 
 			// step 4: fitness

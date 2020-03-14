@@ -5,10 +5,12 @@ import clegoues.genprog4java.fitness.Fitness;
 import clegoues.genprog4java.fitness.FitnessValue;
 import clegoues.genprog4java.fitness.TestCase;
 import clegoues.genprog4java.java.ClassInfo;
+import clegoues.genprog4java.main.Configuration;
 import clegoues.genprog4java.mut.EditHole;
 import clegoues.genprog4java.mut.EditOperation;
 import clegoues.genprog4java.mut.MethodCutter;
 import clegoues.genprog4java.mut.edits.java.JavaEditOperation;
+import clegoues.genprog4java.mut.edits.java.JavaEditPool;
 import clegoues.genprog4java.mut.holes.java.JavaLocation;
 import clegoues.genprog4java.mut.holes.java.StatementHole;
 import clegoues.genprog4java.mut.varexc.VarexCGlobal;
@@ -21,6 +23,8 @@ import org.eclipse.jface.text.IDocument;
 import org.eclipse.text.edits.MalformedTreeException;
 import org.eclipse.text.edits.TextEdit;
 
+import java.nio.file.FileSystems;
+import java.nio.file.Path;
 import java.util.*;
 
 /**
@@ -33,7 +37,8 @@ public class MergedRepresentation extends JavaRepresentation {
 
     private LinkedList<JavaRepresentation> composed = new LinkedList<>();
     private HashMap<ASTNode, ASTNode> nodeStore = new HashMap<>();
-    private HashSet<EditOperation> compilableEdits = null;
+    private HashSet<JavaEditOperation> compilableEdits = new HashSet<>();
+    private HashSet<JavaEditOperation> uncompilableEdits = new HashSet<>();
 
     private MergedRepresentation(){}
 
@@ -55,8 +60,9 @@ public class MergedRepresentation extends JavaRepresentation {
     @Override
     protected ArrayList<Pair<ClassInfo, String>> internalComputeSourceBuffers() {
         sortGenome();
-        collectCompilableEdits();
+        collectEdits();
         excludeEdits();
+        serializeEdits();
         ArrayList<Pair<ClassInfo, String>> retVal = new ArrayList<Pair<ClassInfo, String>>();
         for (Map.Entry<ClassInfo, String> pair : sourceInfo.getOriginalSource().entrySet()) {
             ClassInfo ci = pair.getKey();
@@ -103,15 +109,22 @@ public class MergedRepresentation extends JavaRepresentation {
         return retVal;
     }
 
-    private void collectCompilableEdits() {
-        if (compilableEdits == null) {
-            compilableEdits = new HashSet<>();
-            for (JavaRepresentation jr : composed) {
-                if (jr.canCompile) {
-                    compilableEdits.addAll(jr.getGenome());
-                }
+    private void collectEdits() {
+        for (JavaRepresentation jr : composed) {
+            assert jr.getGenome().size() <= 1 : "Expecting single edits";
+            if (jr.canCompile) {
+                compilableEdits.addAll(jr.getGenome());
+            } else {
+                uncompilableEdits.addAll(jr.getGenome());
             }
         }
+    }
+
+    private void serializeEdits() {
+        editFactory.pool.addEdits(compilableEdits, true);
+        editFactory.pool.addEdits(uncompilableEdits, false);
+        Path path = FileSystems.getDefault().getPath(Configuration.outputDir, Configuration.editSerFile);
+        JavaEditPool.serialize(editFactory.pool, path);
     }
 
     /**

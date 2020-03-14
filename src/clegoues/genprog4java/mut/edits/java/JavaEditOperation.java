@@ -34,26 +34,18 @@
 package clegoues.genprog4java.mut.edits.java;
 
 
-
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-
-import org.eclipse.jdt.core.dom.ASTNode;
-import org.eclipse.jdt.core.dom.rewrite.ASTRewrite;
-
 import clegoues.genprog4java.java.JavaStatement;
 import clegoues.genprog4java.localization.Location;
 import clegoues.genprog4java.mut.EditHole;
 import clegoues.genprog4java.mut.EditOperation;
-import clegoues.genprog4java.mut.Mutation;
 import clegoues.genprog4java.mut.holes.java.JavaLocation;
+import org.eclipse.jdt.core.dom.rewrite.ASTRewrite;
 
 public abstract class JavaEditOperation implements EditOperation<ASTRewrite> {
 
 	private Location<JavaStatement> location = null;
 	private EditHole holeCode = null;
-	private String variantFolder = null;
+	protected String variantFolder = null;
 	
 	protected JavaEditOperation() { } 
 	
@@ -87,5 +79,10 @@ public abstract class JavaEditOperation implements EditOperation<ASTRewrite> {
 	    if (variantFolder != null)
 	    	throw new RuntimeException("Overwriting existing variantFolder");
 	    this.variantFolder = f;
+	}
+
+	@Override
+	public boolean equals(Object that) {
+		return that instanceof JavaEditOperation && this.toString().equals(that.toString());
 	}
 }

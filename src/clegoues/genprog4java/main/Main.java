@@ -33,18 +33,7 @@
 
 package clegoues.genprog4java.main;
 
-import java.io.File;
-import java.io.IOException;
-
-import org.apache.log4j.BasicConfigurator;
-import org.apache.log4j.Logger;
-
-import clegoues.genprog4java.Search.BruteForce;
-import clegoues.genprog4java.Search.GeneticProgramming;
-import clegoues.genprog4java.Search.OracleSearch;
-import clegoues.genprog4java.Search.Population;
-import clegoues.genprog4java.Search.RandomSingleEdit;
-import clegoues.genprog4java.Search.Search;
+import clegoues.genprog4java.Search.*;
 import clegoues.genprog4java.fitness.Fitness;
 import clegoues.genprog4java.localization.DefaultLocalization;
 import clegoues.genprog4java.localization.Localization;
@@ -54,6 +43,11 @@ import clegoues.genprog4java.rep.CachingRepresentation;
 import clegoues.genprog4java.rep.JavaRepresentation;
 import clegoues.genprog4java.rep.Representation;
 import clegoues.util.ConfigurationBuilder;
+import org.apache.log4j.BasicConfigurator;
+import org.apache.log4j.Logger;
+
+import java.io.File;
+import java.io.IOException;
 
 public class Main {
 
@@ -83,7 +77,7 @@ public class Main {
 		Configuration.saveOrLoadTargetFiles();
 		ConfigurationBuilder.storeProperties();
 
-        if (Configuration.cleanUpVariants) {
+        if (Configuration.editMode != Configuration.EditMode.EXISTING && Configuration.cleanUpVariants) {
             logger.info("Removing all variants in " + Configuration.outputDir);
             File outputDir = new File(Configuration.outputDir);	// outputDir and workDir are actually different
             String failed = deleteVariants(outputDir);

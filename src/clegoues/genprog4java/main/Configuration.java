@@ -33,26 +33,18 @@
 
 package clegoues.genprog4java.main;
 
-import static clegoues.util.ConfigurationBuilder.BOOL_ARG;
-import static clegoues.util.ConfigurationBuilder.LONG;
-import static clegoues.util.ConfigurationBuilder.STRING;
-
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileNotFoundException;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.util.ArrayList;
-import java.util.Random;
-
+import clegoues.genprog4java.java.ClassInfo;
+import clegoues.util.ConfigurationBuilder;
+import clegoues.util.GlobalUtils;
 import org.apache.commons.io.FilenameUtils;
 import org.apache.log4j.Logger;
 import org.eclipse.jdt.core.JavaCore;
 
-import clegoues.genprog4java.java.ClassInfo;
-import clegoues.util.ConfigurationBuilder;
-import clegoues.util.GlobalUtils;
+import java.io.*;
+import java.util.ArrayList;
+import java.util.Random;
+
+import static clegoues.util.ConfigurationBuilder.*;
 
 public class Configuration {
 	protected static Logger logger = Logger.getLogger(Configuration.class);
@@ -194,6 +186,39 @@ public class Configuration {
 			.withVarName("debug")
 			.withDefault("false")
 			.withHelp("print debug messages")
+			.build();
+
+	public enum EditMode {
+		GENPROG, 			// generate fresh single edits
+		EXISTING, 		// reuse existing single edits
+		PRE_COMPUTE,	// pre-compute a pool of single edits
+	}
+	public static EditMode editMode = new ConfigurationBuilder<EditMode>()
+			.withVarName("editMode")
+			.withHelp("mode of generating single edits")
+			.withCast(new ConfigurationBuilder.LexicalCast<EditMode>() {
+				@Override
+				public EditMode parse(String value) {
+					String lower = value.toLowerCase();
+					switch (lower) {
+						case "genprog":
+							return EditMode.GENPROG;
+						case "existing":
+							return EditMode.EXISTING;
+						case "pre-compute":
+						case "pre_compute":
+							return EditMode.PRE_COMPUTE;
+						default:
+							throw new RuntimeException("Unrecognized mode: " + value);
+					}
+				}
+			})
+			.build();
+
+	public static String editSerFile = ConfigurationBuilder.of(STRING)
+			.withVarName("editSerFile")
+            .withDefault("javaEditPool.ser")
+			.withHelp("file name of the serialized edits")
 			.build();
 
 	private Configuration() {}
