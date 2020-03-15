@@ -49,4 +49,9 @@ public class JavaSavedEdit extends JavaEditOperation implements Serializable {
     public void mergeEdit(ASTRewrite rewriter, HashMap<ASTNode, ASTNode> nodeStore) {
         throw new RuntimeException("mergeEdit() should not be called on SavedEdit");
     }
+
+    @Override
+    public String toString() {
+        return "Saved" + editString;
+    }
 }
