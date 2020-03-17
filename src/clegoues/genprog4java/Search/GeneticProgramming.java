@@ -50,6 +50,7 @@ public class GeneticProgramming<G extends EditOperation> extends Search<G>{
 		if (Configuration.editMode == Configuration.EditMode.PRE_COMPUTE) {
 			LinkedHashSet<Representation<G>> set = new LinkedHashSet<>();
 			int attempts = 0;
+			set.add(original.copy());	// avoid mutations that do nothing, e.g., StmtReplace(62,62)
 			while (set.size() < stillNeed) {
 				Representation<G> newItem = original.copy();
 				attempts++;
@@ -60,6 +61,7 @@ public class GeneticProgramming<G extends EditOperation> extends Search<G>{
 					break;
 				}
 			}
+			set.remove(original.copy());
 			for (Representation<G> rep : set) {
 				initialPopulation.add(rep);
 			}
