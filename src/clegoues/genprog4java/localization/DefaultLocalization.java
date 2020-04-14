@@ -20,6 +20,7 @@ import org.jacoco.core.analysis.ICounter;
 import org.jacoco.core.data.*;
 
 import java.io.*;
+import java.nio.file.FileSystems;
 import java.util.*;
 
 import static clegoues.util.ConfigurationBuilder.*;
@@ -282,7 +283,8 @@ public class DefaultLocalization extends Localization {
 			}
 			for(String packagePath : packages) {
 				// question: should I save the package code as well in original?  I think no...
-				List<File> list = Arrays.asList(new File(Configuration.workingDir + File.separatorChar + Configuration.sourceDir + File.separatorChar + packagePath).listFiles(new FilenameFilter(){
+				File f = FileSystems.getDefault().getPath(Configuration.workingDir, Configuration.sourceDir, packagePath).toFile();
+				List<File> list = Arrays.asList(f.listFiles(new FilenameFilter(){
 					@Override
 					public boolean accept(File dir, String name) {
 						return name.endsWith(".java") && !clazzes.contains(name); // or something else

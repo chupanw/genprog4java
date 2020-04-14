@@ -41,6 +41,7 @@ import org.apache.log4j.Logger;
 import org.eclipse.jdt.core.JavaCore;
 
 import java.io.*;
+import java.nio.file.FileSystems;
 import java.util.ArrayList;
 import java.util.Random;
 
@@ -283,7 +284,7 @@ public class Configuration {
 		File createFile = new File(original);
 		createFile.mkdirs();
 
-		String sourceDirPath =  Configuration.workingDir + File.separatorChar + Configuration.sourceDir + File.separatorChar;
+		String sourceDirPath = FileSystems.getDefault().getPath(Configuration.workingDir, Configuration.sourceDir).toFile().getAbsolutePath() + File.separator;
 		
 		for( ClassInfo fileInfo : Configuration.targetClassNames ){
 			String className = fileInfo.getClassName();
