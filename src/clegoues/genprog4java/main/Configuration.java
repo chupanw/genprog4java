@@ -232,12 +232,13 @@ public class Configuration {
 		String safeFolder = Configuration.outputDir  + File.separatorChar + "original" + File.separatorChar;
 		
 		//If there is a variant already created in the output folder then it is not the first run
-		File originalFolder = new File(Configuration.outputDir  + File.separatorChar + "original"  + File.separatorChar );
+		File originalFolder = FileSystems.getDefault().getPath(Configuration.outputDir, "original").toFile();
 		if (originalFolder.exists()){
 			
 			for( ClassInfo s : Configuration.targetClassNames ){
+				String srcFolder = FileSystems.getDefault().getPath(Configuration.workingDir, Configuration.sourceDir, s.getPackage()).toFile().getAbsolutePath();
 				//overwrite the targetClass with the one saved before
-				GlobalUtils.runCommand("cp " + safeFolder + s.pathToJavaFile() + " " + Configuration.workingDir + Configuration.sourceDir + File.separatorChar + s.getPackage());
+				GlobalUtils.runCommand("cp " + safeFolder + s.pathToJavaFile() + " " + srcFolder);
 			}
 			
 		//else 	it is the first run
