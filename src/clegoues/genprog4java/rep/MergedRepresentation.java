@@ -84,7 +84,7 @@ public class MergedRepresentation extends JavaRepresentation {
                 }
                 TextEdit edits = rewriter.rewriteAST(original, null);
                 edits.apply(original);
-                MethodCutter mc = new MethodCutter(original, 65535);    // magical number based on observations
+                MethodCutter mc = new MethodCutter(original, 100);
                 mc.applyCutEdits();
             } catch (IllegalArgumentException e) {
                 e.printStackTrace();

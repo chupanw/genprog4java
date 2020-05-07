@@ -12,6 +12,7 @@ import org.eclipse.text.edits.TextEdit;
 import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Set;
 
 /**
  * Cut a method into some smaller ones for VarexC
@@ -22,7 +23,7 @@ public class MethodCutter {
     private ASTNode rootASTNode;
     private ASTRewrite rewriter;
     private AST ast;
-    private int maxBytes;
+    private int maxNumberOfStmts;
     private Logger logger = Logger.getLogger(MethodCutter.class);
 
     /**
@@ -35,12 +36,11 @@ public class MethodCutter {
      * fine-grained cutting.
      *
      * @param document  IDocument instance that stores the source code
-     * @param maxBytes  Maximum bytes for a method based on {@link ASTNode#subtreeBytes()}, which is very
-     *                  inaccurate.
+     * @param maxNStmts Maximum number of statements we keep in a method
      */
-    public MethodCutter(IDocument document, int maxBytes) {
+    public MethodCutter(IDocument document, int maxNStmts) {
         this.sourceFile = document;
-        this.maxBytes = maxBytes;
+        this.maxNumberOfStmts = maxNStmts;
         ASTParser parser = ASTParser.newParser(AST.JLS8);
         parser.setSource(document.get().toCharArray());
         this.rootASTNode = parser.createAST(null);
@@ -64,7 +64,7 @@ public class MethodCutter {
     private void processClass(TypeDeclaration classDecl) {
         MethodDeclaration[] methodDecls = classDecl.getMethods();
         for (MethodDeclaration m : methodDecls) {
-            if (m.isConstructor()) continue;
+            if (m.isConstructor()) continue;  // constructors might cause issues with final variables
             processMethod(classDecl, m);
         }
     }
@@ -87,21 +87,28 @@ public class MethodCutter {
         Statement cp = findCutPoint(statements);
         if (cp != null) {
             // different ways of splitting depending on the types of statement
-            if (statements.indexOf(cp) == 1) {
+            if (statements.indexOf(cp) == 0) {
                 Statement first = statements.get(0);
                 if (first instanceof IfStatement) {
                     return splitIfStatement(classDecl, methodDecl, cp);
                 }
                 else if (first instanceof Block) {
-                    System.err.println("Block? Should not appear!?");
-                    return splitMethodBody(classDecl, methodDecl, cp);
+                    return splitBlock(classDecl, methodDecl, cp);
                 }
-                else if (first instanceof WhileStatement || first instanceof ForStatement || first instanceof EnhancedForStatement || first instanceof DoStatement || first instanceof SwitchStatement || first instanceof TryStatement) {
+                else if (first instanceof WhileStatement) {
+                    return splitWhile(classDecl, methodDecl, cp);
+                }
+                else if (first instanceof ForStatement || first instanceof EnhancedForStatement || first instanceof DoStatement || first instanceof SwitchStatement || first instanceof TryStatement) {
                     System.err.println("Might need to split " + first.getClass());
-                    return splitMethodBody(classDecl, methodDecl, cp);
+                    if (statements.size() > 1) {
+                        cp = statements.get(1);
+                        return splitMethodBody(classDecl, methodDecl, cp);
+                    } else {
+                        return methodDecl;
+                    }
                 }
                 else {
-                    return splitMethodBody(classDecl, methodDecl, cp);
+                    throw new RuntimeException("Big statement of an unexpected type: " + cp.getClass());
                 }
             }
             else {
@@ -109,6 +116,121 @@ public class MethodCutter {
             }
         }
         else {
+            return methodDecl;
+        }
+    }
+
+    /**
+     * Check if a loop condition is true loop
+     *
+     * There are potentially many different forms of true loop, such as:
+     *  for (int i = 0; i < 10; )   // update: the Java compiler actually complains about this
+     *  for (int i = 0; true; i++)
+     *
+     *  Right now, only check the most obvious boolean literal
+     */
+    private boolean isTrueLoop(Expression exp) {
+        if (exp instanceof BooleanLiteral) {
+            return ((BooleanLiteral) exp).booleanValue();
+        }
+        else {
+            return false;
+        }
+    }
+
+    private boolean isReturnVoid(MethodDeclaration m) {
+        return m.getReturnType2() != null && m.getReturnType2().isPrimitiveType() && ((PrimitiveType) m.getReturnType2()).getPrimitiveTypeCode() == PrimitiveType.VOID;
+    }
+
+    private MethodDeclaration splitWhile(TypeDeclaration classDecl, MethodDeclaration methodDecl, Statement cp) {
+        logger.info("Cutting " + classDecl.getName() + "." + methodDecl.getName() + "by splitting while");
+        WhileStatement bigWhile = (WhileStatement) methodDecl.getBody().statements().get(0);
+        boolean onlyWhile = methodDecl.getBody().statements().size() == 1;
+        boolean isTrueLoop = isTrueLoop(bigWhile.getExpression());
+        boolean isReturnVoid = isReturnVoid(methodDecl);
+
+        VariableDeclarationCollector varCollector = new VariableDeclarationCollector(ast);
+        bigWhile.getExpression().accept(varCollector);
+
+        Set<MyParameter> parameters = getParameters(methodDecl);
+
+        LoopRewriteVisitor loopRewrite = new LoopRewriteVisitor(parameters, varCollector.vars, rewriter, classDecl, methodDecl);
+        bigWhile.accept(loopRewrite);
+        loopRewrite.writeFields2Class();
+
+        Block replacement = ast.newBlock();
+
+        // before loop init sequence
+        addStmtsToBlock(replacement, loopRewrite.getBeforeLoopSeq());
+
+        // new loop
+        WhileStatement newWhile = ast.newWhileStatement();
+        Expression rewrittenExp = (Expression) rewriter.get(bigWhile, WhileStatement.EXPRESSION_PROPERTY);
+        newWhile.setExpression((Expression) ASTNode.copySubtree(ast, rewrittenExp));
+        List<Statement> rewrittenLoopBody= loopRewrite.getRewrittenLoopBody((Block) bigWhile.getBody());
+        Block newLoopBody = statements2Method(classDecl, methodDecl, rewrittenLoopBody, false);
+        // check break
+        if (!(onlyWhile && !isReturnVoid && isTrueLoop)) {
+            IfStatement isBreakCheck = ast.newIfStatement();
+            FieldAccess isBreakFA = loopRewrite.genFieldAccess(loopRewrite.isBreakFieldName);
+            isBreakCheck.setExpression(isBreakFA);
+            isBreakCheck.setThenStatement(ast.newBreakStatement());
+            newLoopBody.statements().add(isBreakCheck);
+        }
+        // check return
+        IfStatement isReturnCheck = ast.newIfStatement();
+        FieldAccess isReturnFA = loopRewrite.genFieldAccess(loopRewrite.isReturnFieldName);
+        isReturnCheck.setExpression(isReturnFA);
+        ReturnStatement ret = ast.newReturnStatement();
+        isReturnCheck.setThenStatement(ret);
+        if (loopRewrite.hasReturnValue()) {
+            ret.setExpression(loopRewrite.genFieldAccess(loopRewrite.returnValueFieldName));
+        }
+        newLoopBody.statements().add(isReturnCheck);
+        newWhile.setBody(newLoopBody);
+        replacement.statements().add(newWhile);
+
+        if (!onlyWhile) {
+            //  * after loop sequence to update method parameters
+            addStmtsToBlock(replacement, loopRewrite.getAfterLoopSeq());
+
+            MethodDeclaration splitMethod = splitMethodBody(classDecl, methodDecl, (Statement) methodDecl.getBody().statements().get(1));
+            ListRewrite lr = rewriter.getListRewrite(splitMethod.getBody(), Block.STATEMENTS_PROPERTY);
+            List<Statement> rewritten = lr.getRewrittenList();
+            assert rewritten.size() == 2 : "Should have only one big while and one last statement";
+            lr.replace(rewritten.get(0), replacement, null);
+            return splitMethod;
+        }
+        else {
+            rewriter.replace(bigWhile, replacement, null);
+            return methodDecl;
+        }
+    }
+
+    private MethodDeclaration splitBlock(TypeDeclaration classDecl, MethodDeclaration methodDecl, Statement cp) {
+        logger.info("Cutting " + classDecl.getName() + "." + methodDecl.getName() + " by splitting block");
+        Block bigBlock = (Block) methodDecl.getBody().statements().get(0);
+
+        if (methodDecl.getBody().statements().size() > 1) {
+            // Step 1: split this method, leave the big block
+            MethodDeclaration splitMethod = splitMethodBody(classDecl, methodDecl, (Statement) methodDecl.getBody().statements().get(1));
+            // Step 2: temporarily remove the last statement, to be inserted into the big block
+            ListRewrite lr = rewriter.getListRewrite(splitMethod.getBody(), Block.STATEMENTS_PROPERTY);
+            List<Statement> rewritten = lr.getRewrittenList();
+            assert rewritten.size() == 2 : "Should have only one big Block and one last statement";
+            Statement last = rewritten.get(rewritten.size() - 1);
+            lr.remove(last, null);
+
+            List<Statement> statements = bigBlock.statements();
+            statements.add(last);
+            Block newMethodBody = statements2Method(classDecl, methodDecl, statements, true);
+            rewriter.replace(splitMethod.getBody(), newMethodBody, null);
+            return splitMethod;
+        }
+        else {
+            List<Statement> statements = bigBlock.statements();
+            Block newMethodBody = statements2Method(classDecl, methodDecl, statements, true);
+            rewriter.replace(methodDecl.getBody(), newMethodBody, null);
             return methodDecl;
         }
     }
@@ -141,15 +263,17 @@ public class MethodCutter {
     private MethodDeclaration splitIfStatement(TypeDeclaration classDecl, MethodDeclaration methodDecl, Statement cp) {
         logger.info("Cutting " + classDecl.getName() + "." + methodDecl.getName() + " by splitting if statement");
         IfStatement ifStmt = (IfStatement) methodDecl.getBody().statements().get(0);
-        // Step 1
-        MethodDeclaration splitM = splitMethodBody(classDecl, methodDecl, cp);
-        // todo: has this been written yet?
 
-        // Step 2
-        ListRewrite lr = rewriter.getListRewrite(splitM.getBody(), Block.STATEMENTS_PROPERTY);
-        List<Statement> rewritten = lr.getRewrittenList();
-        Statement last = rewritten.get(rewritten.size() - 1);
-        lr.remove(last, null);
+        Statement last = null;
+        if (methodDecl.getBody().statements().size() > 1) {
+            // Step 1: split this method, leave the big if statement
+            MethodDeclaration splitM = splitMethodBody(classDecl, methodDecl, (Statement) methodDecl.getBody().statements().get(1));
+            // Step 2: temporally remove the last statement, which will be added to branches separately
+            ListRewrite lr = rewriter.getListRewrite(splitM.getBody(), Block.STATEMENTS_PROPERTY);
+            List<Statement> rewritten = lr.getRewrittenList();
+            last = rewritten.get(rewritten.size() - 1);
+            lr.remove(last, null);
+        }
 
         // then branch
         List<Statement> thenStmts = new LinkedList<>();
@@ -159,9 +283,9 @@ public class MethodCutter {
         else {
             thenStmts.add(ifStmt.getThenStatement());
         }
-        if (!isTerminalStmt(thenStmts.get(thenStmts.size() - 1)))
+        if (!isTerminalStmt(thenStmts.get(thenStmts.size() - 1)) && last != null)
             thenStmts.add(last);
-        Block thenBlock = branch2Method(classDecl, methodDecl, thenStmts);
+        Block thenBlock = statements2Method(classDecl, methodDecl, thenStmts, true);
 
         // else branch
         List<Statement> elseStmts = new LinkedList<>();
@@ -173,9 +297,9 @@ public class MethodCutter {
                 elseStmts.add(ifStmt.getElseStatement());
             }
         }
-        if (elseStmts.isEmpty() || !isTerminalStmt(elseStmts.get(elseStmts.size() - 1)))
+        if (last != null && (elseStmts.isEmpty() || !isTerminalStmt(elseStmts.get(elseStmts.size() - 1))))
             elseStmts.add(last);
-        Block elseBlock = branch2Method(classDecl, methodDecl, elseStmts);
+        Block elseBlock = statements2Method(classDecl, methodDecl, elseStmts, true);
 
         IfStatement replacementIfStmt = ast.newIfStatement();
         replacementIfStmt.setExpression((Expression) ASTNode.copySubtree(ast, ifStmt.getExpression()));
@@ -206,27 +330,30 @@ public class MethodCutter {
      */
     private void addStmtsToBlock(Block block, List<Statement> statements) {
         for (Statement s : statements) {
-            if (s instanceof Block) {
-                addStmtsToBlock(block, ((Block) s).statements());
-            } else {
-                block.statements().add(ASTNode.copySubtree(ast, s));
-            }
+            block.statements().add(ASTNode.copySubtree(ast, s));
         }
     }
 
-    private Block branch2Method(TypeDeclaration classDecl, MethodDeclaration methodDecl, List<Statement> statements) {
+    /**
+     * Turn a list of statements into a method and return a block with that method call
+     * @param classDecl
+     * @param methodDecl
+     * @param statements
+     * @return
+     */
+    private Block statements2Method(TypeDeclaration classDecl, MethodDeclaration methodDecl, List<Statement> statements, boolean shouldReturn) {
         MethodDeclaration m = ast.newMethodDeclaration();
         MethodInvocation mi = ast.newMethodInvocation();
         Block mBody = ast.newBlock();
-        String mName = "_splitting_branch_" + VarexCGlobal.getNextMethodID();
+        String mName = "_splitting_statements_" + VarexCGlobal.getNextMethodID();
 
         mi.setName(ast.newSimpleName(mName));
         m.setReturnType2((Type) ASTNode.copySubtree(ast, methodDecl.getReturnType2()));
         m.setName(ast.newSimpleName(mName));
         m.setBody(mBody);
 
-        HashSet<Parameter> parameters = getParameters(methodDecl);
-        for (Parameter p : parameters) {
+        HashSet<MyParameter> parameters = getParameters(methodDecl);
+        for (MyParameter p : parameters) {
             SingleVariableDeclaration svd = ast.newSingleVariableDeclaration();
             svd.setType(p.getType());
             svd.setName(p.getName());
@@ -240,8 +367,7 @@ public class MethodCutter {
         writeMethod2Class(classDecl, processed);
 
         Block branch = ast.newBlock();
-        Type retType = m.getReturnType2();
-        if (retType != null && retType.isPrimitiveType() && ((PrimitiveType) retType).getPrimitiveTypeCode() == PrimitiveType.VOID) {
+        if (!shouldReturn || isReturnVoid(m)) {
             ExpressionStatement expStmt = ast.newExpressionStatement(mi);
             branch.statements().add(expStmt);
         }
@@ -265,9 +391,9 @@ public class MethodCutter {
         logger.info("Cutting " + classDecl.getName() + "." + methodDecl.getName() + " by splitting method body");
 
         List<Statement> statements = methodDecl.getBody().statements();
-        HashSet<Parameter> blockVarsInScope = getVarsInScope(methodDecl.getBody(), cp);
-        HashSet<Parameter> parameters = getParameters(methodDecl);
-        HashSet<Parameter> varsInScope = new HashSet<>(blockVarsInScope);
+        HashSet<MyParameter> blockVarsInScope = getVarsInScope(methodDecl.getBody(), cp);
+        HashSet<MyParameter> parameters = getParameters(methodDecl);
+        HashSet<MyParameter> varsInScope = new HashSet<>(blockVarsInScope);
         varsInScope.addAll(parameters);
 
         // Construct a new method and the method invocation
@@ -279,7 +405,7 @@ public class MethodCutter {
         MethodInvocation mi = ast.newMethodInvocation();    // the replacement return expression
         mi.setName(ast.newSimpleName(mn));
 
-        for (Parameter p : varsInScope) {
+        for (MyParameter p : varsInScope) {
             SingleVariableDeclaration svd = ast.newSingleVariableDeclaration();
             svd.setType(p.getType());
             svd.setName(p.getName());
@@ -297,7 +423,7 @@ public class MethodCutter {
             lr.remove(statements.get(i), null);
         }
 
-        if (!(m.getReturnType2().isPrimitiveType() && ((PrimitiveType) m.getReturnType2()).getPrimitiveTypeCode() == PrimitiveType.VOID)) {
+        if (!isReturnVoid(m)) {
             ReturnStatement rs = ast.newReturnStatement();
             rs.setExpression(mi);
             lr.insertLast(rs, null);
@@ -335,29 +461,21 @@ public class MethodCutter {
      * @return  The statement from which we should start a new method
      */
     private Statement findCutPoint(List<Statement> statements) {
-        if (statements.size() <= 1) {
-            return null;
-        }
-        else {
-            int bytes = 0;
-            for (Statement s : statements) {
-                bytes += memSize(s);
-                if (bytes > maxBytes) {
-                    System.out.println("Current size: " + bytes);
-                    if (statements.indexOf(s) == 0) return statements.get(1);
-                    else return s;
-                }
+        int stmtCount = 0;
+        for (Statement s : statements) {
+            stmtCount += countStmt(s);
+            if (stmtCount > maxNumberOfStmts) {
+                logger.info("Probably need splitting, current number of statements: " + stmtCount);
+                return s;
             }
-            return null;
         }
+        return null;
     }
 
-    private boolean isMethodTooBig(MethodDeclaration method) {
-        return memSize(method) > maxBytes;
-    }
-
-    private int memSize(ASTNode n) {
-        return n.subtreeBytes();
+    private int countStmt(ASTNode n) {
+        StmtCountVisitor visitor = new StmtCountVisitor();
+        n.accept(visitor);
+        return visitor.getStmtCount();
     }
 
 
@@ -375,9 +493,9 @@ public class MethodCutter {
      * @param cp
      * @return
      */
-    private HashSet<Parameter> getVarsInScope(Block block, Statement cp) {
+    private HashSet<MyParameter> getVarsInScope(Block block, Statement cp) {
         List<Statement> statements = block.statements();
-        HashSet<Parameter> res = new HashSet<>();
+        HashSet<MyParameter> res = new HashSet<>();
         int index = statements.indexOf(cp);
         for (int i = index - 1; i >= 0 ; i--) {
             Statement s = statements.get(i);
@@ -385,14 +503,14 @@ public class MethodCutter {
                 VariableDeclarationStatement vd = (VariableDeclarationStatement) s;
                 Type t = vd.getType();
                 for (Object f : vd.fragments()) {
-                    Parameter p = new Parameter(t, ((VariableDeclarationFragment) f).getName(), ast, false);
+                    MyParameter p = new MyParameter(t, ((VariableDeclarationFragment) f).getName(), ast, false);
                     res.add(p);
                 }
             } else if (s instanceof ExpressionStatement && ((ExpressionStatement) s).getExpression() instanceof VariableDeclarationExpression) {
                 VariableDeclarationExpression ve = (VariableDeclarationExpression)((ExpressionStatement) s).getExpression();
                 Type t = ve.getType();
                 for (Object f : ve.fragments()) {
-                    Parameter p = new Parameter(t, ((VariableDeclarationFragment) f).getName(), ast, false);
+                    MyParameter p = new MyParameter(t, ((VariableDeclarationFragment) f).getName(), ast, false);
                     res.add(p);
                 }
             }
@@ -401,49 +519,12 @@ public class MethodCutter {
         return res;
     }
 
-    private HashSet<Parameter> getParameters(MethodDeclaration m) {
-        HashSet<Parameter> res = new HashSet<>();
+    private HashSet<MyParameter> getParameters(MethodDeclaration m) {
+        HashSet<MyParameter> res = new HashSet<>();
         List<SingleVariableDeclaration> params = m.parameters();
         for (SingleVariableDeclaration p : params) {
-            res.add(new Parameter(p.getType(), p.getName(), ast, p.isVarargs()));
+            res.add(new MyParameter(p.getType(), p.getName(), ast, p.isVarargs()));
         }
         return res;
-    }
-
-    class Parameter {
-        private Type type;
-        private SimpleName name;
-        private AST target;
-        private boolean isVarargs;
-        Parameter(Type t, SimpleName n, AST target, boolean isVarargs) {
-            this.type = t;
-            this.name = n;
-            this.target = target;
-            this.isVarargs = isVarargs;
-        }
-
-        public Type getType() {
-            if (isVarargs) {
-                return target.newArrayType((Type) ASTNode.copySubtree(target, type));
-            }
-            else {
-                return (Type) ASTNode.copySubtree(target, type);
-            }
-        }
-
-        public SimpleName getName() {
-            return (SimpleName) ASTNode.copySubtree(target, name);
-        }
-
-        @Override
-        public boolean equals(Object obj) {
-            if (obj instanceof Parameter) {
-                Parameter that = (Parameter) obj;
-                return this.type.equals(that.type) && this.name.equals(that.name);
-            }
-            else {
-                return false;
-            }
-        }
     }
 }
