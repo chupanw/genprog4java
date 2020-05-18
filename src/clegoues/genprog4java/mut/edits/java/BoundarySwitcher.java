@@ -7,6 +7,7 @@ import org.eclipse.jdt.core.dom.*;
 import org.eclipse.jdt.core.dom.rewrite.ASTRewrite;
 
 import java.util.HashMap;
+import java.util.List;
 
 /**
  * Replace relational operators with their boundary counterpart
@@ -34,11 +35,11 @@ public class BoundarySwitcher extends JavaEditOperation {
     }
 
     @Override
-    public void mergeEdit(ASTRewrite rewriter, HashMap<ASTNode, ASTNode> nodeStore) {
+    public void mergeEdit(ASTRewrite rewriter, HashMap<ASTNode, List<ASTNode>> nodeStore) {
         editAsTernary(rewriter, nodeStore);
     }
 
-    private void editAsTernary(ASTRewrite rewriter, HashMap<ASTNode, ASTNode> nodeStore) {
+    private void editAsTernary(ASTRewrite rewriter, HashMap<ASTNode, List<ASTNode>> nodeStore) {
         InfixExpression locationExprCopy = (InfixExpression) ASTNode.copySubtree(rewriter.getAST(), locationExpr);
 
         ConditionalExpression ife = rewriter.getAST().newConditionalExpression();

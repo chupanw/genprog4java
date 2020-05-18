@@ -5,6 +5,7 @@ import org.eclipse.jdt.core.dom.rewrite.ASTRewrite;
 
 import java.io.Serializable;
 import java.util.HashMap;
+import java.util.List;
 
 public class JavaSavedEdit extends JavaEditOperation implements Serializable {
     public String editString;
@@ -46,7 +47,7 @@ public class JavaSavedEdit extends JavaEditOperation implements Serializable {
     }
 
     @Override
-    public void mergeEdit(ASTRewrite rewriter, HashMap<ASTNode, ASTNode> nodeStore) {
+    public void mergeEdit(ASTRewrite rewriter, HashMap<ASTNode, List<ASTNode>> nodeStore) {
         throw new RuntimeException("mergeEdit() should not be called on SavedEdit");
     }
 

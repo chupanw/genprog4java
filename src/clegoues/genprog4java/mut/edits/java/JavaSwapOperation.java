@@ -1,14 +1,16 @@
 package clegoues.genprog4java.mut.edits.java;
 
-import java.util.HashMap;
-
-import org.eclipse.jdt.core.dom.*;
+import clegoues.genprog4java.mut.EditHole;
+import clegoues.genprog4java.mut.holes.java.JavaLocation;
+import clegoues.genprog4java.mut.holes.java.StatementHole;
+import org.eclipse.jdt.core.dom.ASTNode;
+import org.eclipse.jdt.core.dom.Block;
+import org.eclipse.jdt.core.dom.Expression;
+import org.eclipse.jdt.core.dom.IfStatement;
 import org.eclipse.jdt.core.dom.rewrite.ASTRewrite;
 
-
-import clegoues.genprog4java.mut.EditHole;
-import clegoues.genprog4java.mut.holes.java.StatementHole;
-import clegoues.genprog4java.mut.holes.java.JavaLocation;
+import java.util.HashMap;
+import java.util.List;
 
 public class JavaSwapOperation extends JavaEditOperation {
 	
@@ -27,7 +29,7 @@ public class JavaSwapOperation extends JavaEditOperation {
 	}
 
 	@Override
-	public void mergeEdit(ASTRewrite rewriter, HashMap<ASTNode, ASTNode> nodeStore) {
+	public void mergeEdit(ASTRewrite rewriter, HashMap<ASTNode, List<ASTNode>> nodeStore) {
 		ASTNode locationNode = ((JavaLocation) this.getLocation()).getCodeElement();
 		StatementHole fixCode = (StatementHole) this.getHoleCode();
 		ASTNode fixCodeNode =

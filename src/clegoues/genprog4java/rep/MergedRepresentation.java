@@ -8,7 +8,7 @@ import clegoues.genprog4java.java.ClassInfo;
 import clegoues.genprog4java.main.Configuration;
 import clegoues.genprog4java.mut.EditHole;
 import clegoues.genprog4java.mut.EditOperation;
-import clegoues.genprog4java.mut.MethodCutter;
+import clegoues.genprog4java.mut.RewriteFinalizer;
 import clegoues.genprog4java.mut.edits.java.JavaEditOperation;
 import clegoues.genprog4java.mut.edits.java.JavaEditPool;
 import clegoues.genprog4java.mut.holes.java.JavaLocation;
@@ -36,7 +36,7 @@ import java.util.*;
 public class MergedRepresentation extends JavaRepresentation {
 
     private LinkedList<JavaRepresentation> composed = new LinkedList<>();
-    private HashMap<ASTNode, ASTNode> nodeStore = new HashMap<>();
+    private HashMap<ASTNode, List<ASTNode>> nodeStore = new HashMap<>();
     private HashSet<JavaEditOperation> compilableEdits = new HashSet<>();
     private HashSet<JavaEditOperation> uncompilableEdits = new HashSet<>();
 
@@ -74,18 +74,18 @@ public class MergedRepresentation extends JavaRepresentation {
             AST ast = cu.getAST();
             ASTRewrite rewriter = ASTRewrite.create(ast);
             VarexCGlobal.addImportGlobalOptions(cu, rewriter);
+            RewriteFinalizer finalizer = new RewriteFinalizer(rewriter);
 
             try {
                 for (JavaEditOperation edit : this.getGenome()) {
                     JavaLocation locationStatement = (JavaLocation) edit.getLocation();
                     if(compilableEdits.contains(edit) && locationStatement.getClassInfo()!=null && locationStatement.getClassInfo().getClassName().equalsIgnoreCase(filename) && locationStatement.getClassInfo().getPackage().equalsIgnoreCase(path)){
-                        edit.mergeEdit(rewriter, nodeStore);
+                        edit.methodEdit(rewriter, nodeStore, finalizer);
                     }
                 }
+                finalizer.finalizeEdits();
                 TextEdit edits = rewriter.rewriteAST(original, null);
                 edits.apply(original);
-                MethodCutter mc = new MethodCutter(original, 100);
-                mc.applyCutEdits();
             } catch (IllegalArgumentException e) {
                 e.printStackTrace();
                 return null;
@@ -150,6 +150,9 @@ public class MergedRepresentation extends JavaRepresentation {
             else if (code instanceof Assignment) {
                 if (isAssignment2Final((Expression) code))
                     exclude(toRemove, e);
+            }
+            else if (code instanceof BreakStatement) {
+                exclude(toRemove, e);
             }
             if (fixHole instanceof StatementHole) {
                 ASTNode fixStmt = ((StatementHole) fixHole).getCode();

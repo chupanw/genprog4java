@@ -1,14 +1,15 @@
 package clegoues.genprog4java.mut.edits.java;
 
+import clegoues.genprog4java.mut.EditHole;
+import clegoues.genprog4java.mut.RewriteFinalizer;
+import clegoues.genprog4java.mut.holes.java.JavaLocation;
+import clegoues.genprog4java.mut.holes.java.StatementHole;
 import org.eclipse.jdt.core.dom.*;
 import org.eclipse.jdt.core.dom.rewrite.ASTRewrite;
-
-import clegoues.genprog4java.mut.holes.java.StatementHole;
-import clegoues.genprog4java.mut.holes.java.JavaLocation;
-import clegoues.genprog4java.mut.EditHole;
 import org.eclipse.jdt.core.dom.rewrite.ListRewrite;
 
 import java.util.HashMap;
+import java.util.List;
 
 
 public class JavaAppendOperation extends JavaEditOperation {
@@ -40,7 +41,7 @@ public class JavaAppendOperation extends JavaEditOperation {
 	}
 
 	@Override
-	public void mergeEdit(ASTRewrite rewriter, HashMap<ASTNode, ASTNode> nodeStore) {
+	public void mergeEdit(ASTRewrite rewriter, HashMap<ASTNode, List<ASTNode>> nodeStore) {
 		ASTNode locationNode = ((JavaLocation) this.getLocation()).getCodeElement();
 		StatementHole fixHole = (StatementHole) this.getHoleCode();
 
@@ -80,6 +81,50 @@ public class JavaAppendOperation extends JavaEditOperation {
 
 				applyEditAndUpdateNodeStore(rewriter, newBlock, nodeStore, locationNode, stm1);
 			}
+		}
+	}
+
+	@Override
+	public void methodEdit(ASTRewrite rewriter, HashMap<ASTNode, List<ASTNode>> nodeStore, RewriteFinalizer finalizer) {
+		AST ast = rewriter.getAST();
+		ASTNode locationNode = ((JavaLocation) this.getLocation()).getCodeElement();
+		StatementHole fixHole = (StatementHole) this.getHoleCode();
+		ASTNode locationNodeCopy = ASTNode.copySubtree(ast, locationNode);
+		ASTNode fixCodeNodeCopy = ASTNode.copySubtree(ast, fixHole.getCode());
+		MethodDeclaration mutatedMethod = getMethodDeclaration(locationNode);
+
+		if(locationNode instanceof Statement && fixCodeNodeCopy instanceof Statement) {
+			// new method
+			MethodDeclaration vm = ast.newMethodDeclaration();
+			Block body = ast.newBlock();
+			vm.setName(ast.newSimpleName(this.getVariantFolder()));
+			vm.setReturnType2(ast.newPrimitiveType(PrimitiveType.VOID));
+			for (Type t : (List<Type>) mutatedMethod.thrownExceptionTypes()) {
+				vm.thrownExceptionTypes().add(ASTNode.copySubtree(ast, t));
+			}
+			vm.setBody(body);
+			body.statements().add(locationNodeCopy);
+			IfStatement ife = ast.newIfStatement();
+			ife.setExpression(getNextFieldAccess(ife));
+			Block thenBlock = ast.newBlock();
+			thenBlock.statements().add(fixCodeNodeCopy);
+			ife.setThenStatement(thenBlock);
+			body.statements().add(ife);
+
+			MethodInvocation mi = ast.newMethodInvocation();
+			mi.setExpression(ast.newThisExpression());
+			mi.setName(ast.newSimpleName(getVariantFolder()));
+			ExpressionStatement mis = ast.newExpressionStatement(mi);
+			Block block = ast.newBlock();
+			block.statements().add(mis);
+
+			applyEditAndUpdateNodeStore(rewriter, block, nodeStore, locationNode, locationNodeCopy);
+			finalizer.markVariantMethod(locationNode, vm);
+			finalizer.checkSpecialStatements((Statement) locationNode, (Statement) fixCodeNodeCopy, nodeStore);
+			finalizer.recordVariantCallsite(vm, block);
+		}
+		else {
+			throw new RuntimeException("Unexpected APPEND, trying to append " + fixCodeNodeCopy.getClass() + " to " + locationNode.getClass());
 		}
 	}
 

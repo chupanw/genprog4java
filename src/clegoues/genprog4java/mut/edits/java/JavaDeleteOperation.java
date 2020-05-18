@@ -1,13 +1,12 @@
 package clegoues.genprog4java.mut.edits.java;
 
+import clegoues.genprog4java.mut.RewriteFinalizer;
 import clegoues.genprog4java.mut.holes.java.JavaLocation;
-import org.eclipse.jdt.core.dom.ASTNode;
-import org.eclipse.jdt.core.dom.Block;
-import org.eclipse.jdt.core.dom.Expression;
-import org.eclipse.jdt.core.dom.IfStatement;
+import org.eclipse.jdt.core.dom.*;
 import org.eclipse.jdt.core.dom.rewrite.ASTRewrite;
 
 import java.util.HashMap;
+import java.util.List;
 
 public class JavaDeleteOperation extends JavaEditOperation {
 	
@@ -28,7 +27,7 @@ public class JavaDeleteOperation extends JavaEditOperation {
 	}
 
 	@Override
-	public void mergeEdit(ASTRewrite rewriter, HashMap<ASTNode, ASTNode> nodeStore) {
+	public void mergeEdit(ASTRewrite rewriter, HashMap<ASTNode, List<ASTNode>> nodeStore) {
 		ASTNode locationNode = ((JavaLocation) this.getLocation()).getCodeElement();
 
 		ASTNode originalCodeNode = ASTNode.copySubtree(rewriter.getAST(), locationNode);
@@ -57,6 +56,42 @@ public class JavaDeleteOperation extends JavaEditOperation {
 
 		/* Replace the faulty statement with the empty Block. */
         applyEditAndUpdateNodeStore(rewriter, outerBlock, nodeStore, locationNode, originalCodeNode);
+	}
+
+	@Override
+	public void methodEdit(ASTRewrite rewriter, HashMap<ASTNode, List<ASTNode>> nodeStore, RewriteFinalizer finalizer) {
+		AST ast = rewriter.getAST();
+		ASTNode locationNode = ((JavaLocation) this.getLocation()).getCodeElement();
+		ASTNode locationNodeCopy = ASTNode.copySubtree(ast, locationNode);
+		MethodDeclaration mutatedMethod = getMethodDeclaration(locationNode);
+
+		MethodDeclaration vm = ast.newMethodDeclaration();
+		vm.setReturnType2(ast.newPrimitiveType(PrimitiveType.VOID));
+		vm.setName(ast.newSimpleName(getVariantFolder()));
+		for (Type t : (List<Type>) mutatedMethod.thrownExceptionTypes()) {
+			vm.thrownExceptionTypes().add(ASTNode.copySubtree(ast, t));
+		}
+		Block body = ast.newBlock();
+		vm.setBody(body);
+		IfStatement ife = ast.newIfStatement();
+		Block thenBlock = ast.newBlock();
+		thenBlock.statements().add(locationNodeCopy);
+		ife.setExpression(getNextFieldAccessNot(ife));
+		ife.setThenStatement(thenBlock);
+		body.statements().add(ife);
+
+		MethodInvocation mi = ast.newMethodInvocation();
+		mi.setExpression(ast.newThisExpression());
+		mi.setName(ast.newSimpleName(getVariantFolder()));
+		ExpressionStatement mis = ast.newExpressionStatement(mi);
+
+		Block block = ast.newBlock();
+		block.statements().add(mis);
+
+		applyEditAndUpdateNodeStore(rewriter, block, nodeStore, locationNode, locationNodeCopy);
+		finalizer.markVariantMethod(locationNode, vm);
+		finalizer.checkSpecialStatements((Statement) locationNode, null, nodeStore);
+		finalizer.recordVariantCallsite(vm, block);
 	}
 
 	@Override

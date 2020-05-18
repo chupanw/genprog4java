@@ -39,6 +39,8 @@ import clegoues.genprog4java.localization.Location;
 import clegoues.genprog4java.mut.EditHole;
 import clegoues.genprog4java.mut.EditOperation;
 import clegoues.genprog4java.mut.holes.java.JavaLocation;
+import org.eclipse.jdt.core.dom.ASTNode;
+import org.eclipse.jdt.core.dom.MethodDeclaration;
 import org.eclipse.jdt.core.dom.rewrite.ASTRewrite;
 
 public abstract class JavaEditOperation implements EditOperation<ASTRewrite> {
@@ -79,6 +81,20 @@ public abstract class JavaEditOperation implements EditOperation<ASTRewrite> {
 	    if (variantFolder != null)
 	    	throw new RuntimeException("Overwriting existing variantFolder");
 	    this.variantFolder = f;
+	}
+
+	protected MethodDeclaration getMethodDeclaration(ASTNode n) {
+		if (n != null) {
+			if (n instanceof MethodDeclaration) {
+				return (MethodDeclaration) n;
+			}
+			else {
+				return getMethodDeclaration(n.getParent());
+			}
+		}
+		else {
+			throw new RuntimeException("No surrounding method declaration");
+		}
 	}
 
 	@Override

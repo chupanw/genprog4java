@@ -10,6 +10,7 @@ import org.eclipse.jdt.core.dom.ParenthesizedExpression;
 import org.eclipse.jdt.core.dom.rewrite.ASTRewrite;
 
 import java.util.HashMap;
+import java.util.List;
 
 public class ExpressionModRep extends ExpressionReplacer {
 	
@@ -18,7 +19,7 @@ public class ExpressionModRep extends ExpressionReplacer {
 	}
 
 	@Override
-	public void mergeEdit(ASTRewrite rewriter, HashMap<ASTNode, ASTNode> nodeStore) {
+	public void mergeEdit(ASTRewrite rewriter, HashMap<ASTNode, List<ASTNode>> nodeStore) {
 		Expression locationExp = ((ExpHole) this.getHoleCode()).getLocationExp();
 		Expression newExp = (Expression) ASTNode.copySubtree(rewriter.getAST(), ((ExpHole) this.getHoleCode()).getCode());
 

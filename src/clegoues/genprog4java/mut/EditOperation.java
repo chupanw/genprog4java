@@ -37,7 +37,6 @@ import clegoues.genprog4java.localization.Location;
 import clegoues.genprog4java.mut.varexc.VarexCGlobal;
 import org.eclipse.jdt.core.dom.*;
 import org.eclipse.jdt.core.dom.rewrite.ASTRewrite;
-import org.eclipse.jdt.core.dom.rewrite.ListRewrite;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -56,7 +55,9 @@ public interface EditOperation<R> {
 
 	public void edit(R rewriter);
 
-	default void mergeEdit(R rewriter, HashMap<ASTNode, ASTNode> nodeStore) {}
+	default void mergeEdit(R rewriter, HashMap<ASTNode, List<ASTNode>> nodeStore) {}
+
+	default void methodEdit(R rewriter, HashMap<ASTNode, List<ASTNode>> nodeStore, RewriteFinalizer finalizer) {}
 
 	default Expression getNextFieldAccess(ASTNode parent) {
 		// condition
@@ -81,23 +82,36 @@ public interface EditOperation<R> {
 
 	default void applyEditAndUpdateNodeStore(ASTRewrite rewriter,
                                              ASTNode astReplacement,	// AST node used for replacing
-											 HashMap<ASTNode, ASTNode> nodeStore, // bookkeeping editing progress
+											 HashMap<ASTNode, List<ASTNode>> nodeStore, // bookkeeping editing progress
 											 ASTNode originalLocationNode,
 											 ASTNode newLocationNode
 	) {
 		ASTNode toBeReplaced = originalLocationNode;
 		if (nodeStore.containsKey(toBeReplaced)) {
-			toBeReplaced = nodeStore.get(toBeReplaced);
+			List<ASTNode> l = nodeStore.get(toBeReplaced);
+			toBeReplaced = l.get(l.size() - 1);
 		}
 		rewriter.replace(toBeReplaced, astReplacement, null);
 
-		nodeStore.put(originalLocationNode, newLocationNode);
+		updateNodeStore(nodeStore, originalLocationNode, newLocationNode);
 		ArrayList<ASTNode> originChildren = getChildrenStatementsOrExpressions(originalLocationNode);
 		ArrayList<ASTNode> newChildren = getChildrenStatementsOrExpressions(newLocationNode);
 		for (ASTNode s : originChildren) {
 		    ASTNode ss = newChildren.get(originChildren.indexOf(s));
 		    assert s.toString().equals(ss.toString()) : s.toString() + " not equal to " + ss.toString();
-			nodeStore.put(s, ss);
+		    updateNodeStore(nodeStore, s, ss);
+		}
+	}
+
+	default void updateNodeStore(HashMap<ASTNode, List<ASTNode>> nodeStore, ASTNode key, ASTNode value) {
+		if (nodeStore.containsKey(key)) {
+			List<ASTNode> l = nodeStore.get(key);
+			l.add(value);
+		}
+		else {
+			List<ASTNode> l = new ArrayList<>();
+			l.add(value);
+			nodeStore.put(key, l);
 		}
 	}
 

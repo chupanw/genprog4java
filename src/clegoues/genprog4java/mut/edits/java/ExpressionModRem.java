@@ -8,6 +8,7 @@ import org.eclipse.jdt.core.dom.*;
 import org.eclipse.jdt.core.dom.rewrite.ASTRewrite;
 
 import java.util.HashMap;
+import java.util.List;
 
 public class ExpressionModRem extends ExpressionReplacer {
 
@@ -32,7 +33,7 @@ public class ExpressionModRem extends ExpressionReplacer {
 	}
 
 	@Override
-	public void mergeEdit(ASTRewrite rewriter, HashMap<ASTNode, ASTNode> nodeStore) {
+	public void mergeEdit(ASTRewrite rewriter, HashMap<ASTNode, List<ASTNode>> nodeStore) {
 		ExpChoiceHole thisHole = (ExpChoiceHole) this.getHoleCode();
 		InfixExpression oldExp = (InfixExpression) thisHole.getCode();
 

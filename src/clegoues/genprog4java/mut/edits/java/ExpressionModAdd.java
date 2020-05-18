@@ -7,6 +7,7 @@ import org.eclipse.jdt.core.dom.*;
 import org.eclipse.jdt.core.dom.rewrite.ASTRewrite;
 
 import java.util.HashMap;
+import java.util.List;
 
 public class ExpressionModAdd extends ExpressionReplacer {
 
@@ -40,7 +41,7 @@ public class ExpressionModAdd extends ExpressionReplacer {
 	}
 
 	@Override
-	public void mergeEdit(ASTRewrite rewriter, HashMap<ASTNode, ASTNode> nodeStore) {
+	public void mergeEdit(ASTRewrite rewriter, HashMap<ASTNode, List<ASTNode>> nodeStore) {
 		ExpChoiceHole thisHole = (ExpChoiceHole) this.getHoleCode();
 		Expression locationExp = (Expression) thisHole.getLocationExp();
 		Expression newExpCode = (Expression) thisHole.getCode();
