@@ -176,6 +176,9 @@ public class MergedRepresentation extends JavaRepresentation {
             if (left instanceof FieldAccess) {
                 return isFinalField(((FieldAccess) left).getName());
             }
+            else if (left instanceof SimpleName) {
+                return isFinalField((SimpleName) left);
+            }
         }
         return false;
     }
