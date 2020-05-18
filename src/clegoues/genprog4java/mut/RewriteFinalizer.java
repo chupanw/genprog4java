@@ -43,7 +43,7 @@ public class RewriteFinalizer extends ASTVisitor {
             writeVariantMethods(mutatedMethod);
 
             VarNamesCollector collector = new VarNamesCollector(mutatedMethod);
-            collector.analyze();
+            collectVariableNames(collector, mutatedMethod);
 
             writeFieldsToClass(mutatedMethod, collector);
 
@@ -58,6 +58,13 @@ public class RewriteFinalizer extends ASTVisitor {
             initBreakContinueReturnFields(mutatedMethod, collector);
 
             addChecksToVariantCallSites(mutatedMethod, collector);
+        }
+    }
+
+    private void collectVariableNames(VarNamesCollector collector, MethodDeclaration mutatedMethod) {
+        mutatedMethod.accept(collector);
+        for (MethodDeclaration m : method2Variants.get(mutatedMethod)) {
+            m.accept(collector);
         }
     }
 
@@ -312,10 +319,6 @@ class VarNamesCollector extends ASTVisitor {
         this.returnValueFieldName = "retVal" + "_" + genRandomString();
     }
 
-    public void analyze() {
-        md.accept(this);
-    }
-
     String genRandomString() {
         return Integer.toString(Math.abs(rand.nextInt()));
     }
@@ -324,7 +327,7 @@ class VarNamesCollector extends ASTVisitor {
     public boolean visit(SingleVariableDeclaration node) {
         // formal parameters
         String name = node.getName().getIdentifier();
-        if (!varNames.containsKey(name)) {
+        if (!varNames.containsKey(name) && node.getLocationInParent() == MethodDeclaration.PARAMETERS_PROPERTY) {   // the second check excludes try catch variables
             AST ast = node.getAST();
             String fieldName = name + "_" + genRandomString();
             varNames.put(name, fieldName);
