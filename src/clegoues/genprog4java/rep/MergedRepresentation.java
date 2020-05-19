@@ -154,6 +154,9 @@ public class MergedRepresentation extends JavaRepresentation {
             else if (code instanceof BreakStatement) {
                 exclude(toRemove, e);
             }
+            else if (code instanceof Block && code.getLocationInParent() == MethodDeclaration.BODY_PROPERTY) {
+                exclude(toRemove, e);
+            }
             if (fixHole instanceof StatementHole) {
                 ASTNode fixStmt = ((StatementHole) fixHole).getCode();
                 if (fixStmt instanceof VariableDeclarationStatement) {
