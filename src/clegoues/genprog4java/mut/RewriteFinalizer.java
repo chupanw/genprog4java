@@ -21,6 +21,7 @@ import java.util.*;
 public class RewriteFinalizer extends ASTVisitor {
 
     private HashSet<MethodDeclaration> needsReturnCheck = new HashSet<>();
+    private HashSet<MethodDeclaration> needsReturnCheckAndFirst = new HashSet<>();
     private HashSet<MethodDeclaration> needsBreakCheck = new HashSet<>();
     private HashSet<MethodDeclaration> needsContinueCheck = new HashSet<>();
     private HashMap<MethodDeclaration, Block> variant2Callsite = new HashMap<>();
@@ -142,7 +143,7 @@ public class RewriteFinalizer extends ASTVisitor {
                 fa.setName(ast.newSimpleName(collector.hasReturnFieldName));
                 ifStmt.setExpression(fa);
                 ReturnStatement retStmt = ast.newReturnStatement();
-                if (hasReturnValue(mutatedMethod)) {
+                if (needsReturnCheckAndFirst.contains(m) && hasReturnValue(mutatedMethod)) {
                     FieldAccess retValFA = ast.newFieldAccess();
                     retValFA.setExpression(ast.newThisExpression());
                     retValFA.setName(ast.newSimpleName(collector.returnValueFieldName));
@@ -191,16 +192,19 @@ public class RewriteFinalizer extends ASTVisitor {
             fixCodeNode.accept(fixCodeNodeCheck);
         List<ASTNode> rewriteHistory = nodeStore.get(locationNode);
         assert(rewriteHistory != null);
-        ASTNode first = rewriteHistory.get(0);
-        MethodDeclaration md = getMethodDeclaration(first);
+        List<MethodDeclaration> chain = new LinkedList<>();
+        for (ASTNode n : rewriteHistory) {
+            chain.add(getMethodDeclaration(n));
+        }
         if (locationNodeCheck.hasReturn || fixCodeNodeCheck.hasReturn) {
-            needsReturnCheck.add(md);
+            needsReturnCheck.addAll(chain);
+            needsReturnCheckAndFirst.add(chain.get(0));
         }
         else if (locationNodeCheck.hasBreak || fixCodeNodeCheck.hasBreak) {
-            needsBreakCheck.add(md);
+            needsBreakCheck.addAll(chain);
         }
         else if (locationNodeCheck.hasContinue || fixCodeNodeCheck.hasContinue) {
-            needsContinueCheck.add(md);
+            needsContinueCheck.addAll(chain);
         }
     }
 
@@ -327,12 +331,16 @@ class VarNamesCollector extends ASTVisitor {
     public boolean visit(SingleVariableDeclaration node) {
         // formal parameters
         String name = node.getName().getIdentifier();
-        if (!varNames.containsKey(name) && node.getLocationInParent() == MethodDeclaration.PARAMETERS_PROPERTY) {   // the second check excludes try catch variables
+        if (!varNames.containsKey(name)) {
             AST ast = node.getAST();
             String fieldName = name + "_" + genRandomString();
             varNames.put(name, fieldName);
             MyParameter p = new MyParameter(node.getType(), ast.newSimpleName(name), ast, node.isVarargs());
-            parameters.add(p);
+            if (node.getLocationInParent() == MethodDeclaration.PARAMETERS_PROPERTY) {
+                parameters.add(p);
+            } else {
+                localVariables.add(p);
+            }
         }
         return false;
     }
@@ -456,6 +464,32 @@ class FieldInitVisitor extends ASTVisitor {
                 lsr.insertFirst(assignStmt, null);
             }
         }
+    }
+
+    @Override
+    public boolean visit(SingleVariableDeclaration node) {
+        String name = node.getName().getIdentifier();
+        if (collector.varNames.containsKey(name)) {
+            if (node.getLocationInParent() == EnhancedForStatement.PARAMETER_PROPERTY) {
+                EnhancedForStatement parent = (EnhancedForStatement) node.getParent();
+                Assignment assign = ast.newAssignment();
+                FieldAccess fa = ast.newFieldAccess();
+                fa.setExpression(ast.newThisExpression());
+                fa.setName(ast.newSimpleName(collector.varNames.get(name)));
+                assign.setLeftHandSide(fa);
+                assign.setRightHandSide(ast.newSimpleName(name));
+                ExpressionStatement assignStmt = ast.newExpressionStatement(assign);
+                ListRewrite lsr = rewriter.getListRewrite(parent.getBody(), Block.STATEMENTS_PROPERTY);
+                lsr.insertFirst(assignStmt, null);
+            }
+            else if (node.getLocationInParent() == MethodDeclaration.PARAMETERS_PROPERTY) {
+                return false;
+            }
+            else {
+                throw new RuntimeException("Unexpected SingleVariableDeclaration in " + node.getParent().getClass());
+            }
+        }
+        return false;
     }
 
     @Override
