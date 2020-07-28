@@ -187,7 +187,11 @@ public abstract class Search<G extends EditOperation> {
 			case "castermut":  mutations.add(new WeightedMutation(Mutation.CASTERMUT, weight)); break;
 			case "casteemut":  mutations.add(new WeightedMutation(Mutation.CASTEEMUT, weight)); break;
             case "boundswitch": mutations.add(new WeightedMutation(Mutation.BOUNDSWITCH, weight)); break;
-
+			case "ror": mutations.add(new WeightedMutation(Mutation.ROR, weight)); break;
+			case "aor": mutations.add(new WeightedMutation(Mutation.AOR, weight)); break;
+			case "lcr": mutations.add(new WeightedMutation(Mutation.LCR, weight)); break;
+			case "abs": mutations.add(new WeightedMutation(Mutation.ABS, weight)); break;
+			case "uoi": mutations.add(new WeightedMutation(Mutation.UOI, weight)); break;
 			}
 		}
 		Collections.sort(mutations);

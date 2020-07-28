@@ -49,6 +49,10 @@ public abstract class JavaEditOperation implements EditOperation<ASTRewrite> {
 	private EditHole holeCode = null;
 	protected String variantFolder = null;
 
+	public boolean isExpMutation() {
+		return false;
+	}
+
 	protected JavaEditOperation() { } 
 	
 	public JavaEditOperation(JavaLocation location) {

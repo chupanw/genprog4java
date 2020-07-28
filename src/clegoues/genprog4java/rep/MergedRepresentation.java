@@ -9,8 +9,10 @@ import clegoues.genprog4java.main.Configuration;
 import clegoues.genprog4java.mut.EditHole;
 import clegoues.genprog4java.mut.EditOperation;
 import clegoues.genprog4java.mut.RewriteFinalizer;
+import clegoues.genprog4java.mut.edits.java.AOR;
 import clegoues.genprog4java.mut.edits.java.JavaEditOperation;
 import clegoues.genprog4java.mut.edits.java.JavaEditPool;
+import clegoues.genprog4java.mut.edits.java.UOI;
 import clegoues.genprog4java.mut.holes.java.JavaLocation;
 import clegoues.genprog4java.mut.holes.java.StatementHole;
 import clegoues.genprog4java.mut.varexc.VarexCGlobal;
@@ -60,7 +62,9 @@ public class MergedRepresentation extends JavaRepresentation {
     @Override
     protected ArrayList<Pair<ClassInfo, String>> internalComputeSourceBuffers() {
         sortGenome();
+        putExpMutationToEnd();
         collectEdits();
+        excludeRepetitive();
         excludeEdits();
         serializeEdits();
         ArrayList<Pair<ClassInfo, String>> retVal = new ArrayList<Pair<ClassInfo, String>>();
@@ -161,6 +165,31 @@ public class MergedRepresentation extends JavaRepresentation {
                 ASTNode fixStmt = ((StatementHole) fixHole).getCode();
                 if (fixStmt instanceof VariableDeclarationStatement) {
                     exclude(toRemove, e);
+                }
+            }
+        }
+        compilableEdits.removeAll(toRemove);
+    }
+
+    private void excludeRepetitive() {
+        HashSet<EditOperation> toRemove = new HashSet<>();
+        HashSet<Expression> uniqueAORLocation = new HashSet<>();
+        HashSet<Expression> uniqueUOILocation = new HashSet<>();
+        for (EditOperation e : compilableEdits) {
+            if (e instanceof AOR) {
+                if (uniqueAORLocation.contains(((AOR) e).locationExpr)) {
+                    exclude(toRemove, e);
+                }
+                else {
+                    uniqueAORLocation.add(((AOR) e).locationExpr);
+                }
+            }
+            if (e instanceof UOI) {
+                if (uniqueUOILocation.contains(((UOI) e).locationExpr)) {
+                    exclude(toRemove, e);
+                }
+                else {
+                    uniqueUOILocation.add(((UOI) e).locationExpr);
                 }
             }
         }
@@ -282,5 +311,16 @@ public class MergedRepresentation extends JavaRepresentation {
 
     private void sortGenome() {
         this.getGenome().sort(Comparator.comparingInt(o -> o.getLocation().getId()));
+    }
+
+    private void putExpMutationToEnd() {
+        ArrayList<JavaEditOperation> expMutations = new ArrayList<>();
+        for (JavaEditOperation edit : this.getGenome()) {
+            if (edit.isExpMutation()) {
+                expMutations.add(edit);
+            }
+        }
+        this.getGenome().removeAll(expMutations);
+        this.getGenome().addAll(expMutations);
     }
 }

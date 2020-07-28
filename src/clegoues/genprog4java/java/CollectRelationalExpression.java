@@ -19,7 +19,10 @@ public class CollectRelationalExpression extends ASTVisitor {
         if (op == InfixExpression.Operator.LESS ||
                 op == InfixExpression.Operator.LESS_EQUALS ||
                 op == InfixExpression.Operator.GREATER ||
-                op == InfixExpression.Operator.GREATER_EQUALS) {
+                op == InfixExpression.Operator.GREATER_EQUALS ||
+                op == InfixExpression.Operator.NOT_EQUALS ||
+                op == InfixExpression.Operator.EQUALS
+        ) {
             relationalExprs.add(node);
         }
         return true;

@@ -89,7 +89,7 @@ public class JavaDeleteOperation extends JavaEditOperation {
 		block.statements().add(mis);
 
 		applyEditAndUpdateNodeStore(rewriter, block, nodeStore, locationNode, locationNodeCopy);
-		finalizer.markVariantMethod(locationNode, vm);
+		finalizer.markVariantMethod(locationNode, vm, false);
 		finalizer.checkSpecialStatements((Statement) locationNode, null, nodeStore);
 		finalizer.recordVariantCallsite(vm, block);
 	}

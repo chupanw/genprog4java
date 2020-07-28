@@ -26,6 +26,7 @@ public class RewriteFinalizer extends ASTVisitor {
     private HashSet<MethodDeclaration> needsContinueCheck = new HashSet<>();
     private HashMap<MethodDeclaration, Block> variant2Callsite = new HashMap<>();
     private HashMap<MethodDeclaration, HashSet<MethodDeclaration>> method2Variants = new HashMap<>();
+    private HashSet<MethodDeclaration> variantsWithoutRewritingReturn = new HashSet<>();
 
     private ASTRewrite rewriter;
     private AST ast;
@@ -158,7 +159,9 @@ public class RewriteFinalizer extends ASTVisitor {
     private void rewriteBreakContinueReturnInVariantMethods(MethodDeclaration md, VarNamesCollector collector, VarToFieldVisitor var2field) {
         VariantBreakContinueReturnVisitor v = new VariantBreakContinueReturnVisitor(collector, rewriter, var2field);
         for (MethodDeclaration m : method2Variants.get(md)) {
-            m.accept(v);
+            if (!variantsWithoutRewritingReturn.contains(m)) {
+                m.accept(v);
+            }
         }
     }
 
@@ -240,7 +243,7 @@ public class RewriteFinalizer extends ASTVisitor {
         }
     }
 
-    public void markVariantMethod(ASTNode callsite, MethodDeclaration variantMethod) {
+    public void markVariantMethod(ASTNode callsite, MethodDeclaration variantMethod, boolean skipRewriteReturn) {
         MethodDeclaration callsiteMd = getMethodDeclaration(callsite);
         if (method2Variants.containsKey(callsiteMd)) {
             method2Variants.get(callsiteMd).add(variantMethod);
@@ -249,6 +252,9 @@ public class RewriteFinalizer extends ASTVisitor {
             HashSet<MethodDeclaration> variants = new HashSet<>();
             variants.add(variantMethod);
             method2Variants.put(callsiteMd, variants);
+        }
+        if (skipRewriteReturn) {
+            variantsWithoutRewritingReturn.add(variantMethod);
         }
     }
 
