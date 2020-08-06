@@ -32,9 +32,9 @@ def compile():
     backup_overwrite(pwd, target, tempdir, java_files)
     copyVarexCFiles(pwd, target)
     p = subprocess.run(['ant', 'compile-tests'], cwd=pwd)
-    # Disable this part to save disk space...
-    # if p.returncode == 0:
-    #     copy_compiled_classes(pwd, target)
+    # Sanity check and merge check need these new class files in the -classpath argument
+    if p.returncode == 0:
+        copy_compiled_classes(pwd, target, java_files)
     recover_source_files(pwd, tempdir, java_files)
     cleanupVarexCFiles(pwd)
     shutil.rmtree(tempdir)
@@ -66,17 +66,12 @@ def recover_source_files(pwd, tempdir, java_files):
             shutil.copy(abs_backup, abs_origin_fp)
 
 
-def copy_compiled_classes(pwd, target): 
-    abs_classes = pwd + 'target/classes/'
-    for folderName, _, files in os.walk(abs_classes):
-        for f in files:
-            if f.endswith('.class'):
-                d = os.path.join(pwd, target, folderName[len(abs_classes):])
-                if not os.path.exists(d):
-                    os.makedirs(d)
-                abs_cls = os.path.join(folderName, f)
-                abs_target_cls = os.path.join(d, f)
-                shutil.copy(abs_cls, abs_target_cls)
+def copy_compiled_classes(pwd, target, java_files):
+    for f in java_files:
+       qualified_class_file = f[:-5] + ".class"
+       abs_cls = os.path.join(pwd, 'build/classes', qualified_class_file)
+       abs_target_cls = os.path.join(pwd, target, qualified_class_file)
+       shutil.copy(abs_cls, abs_target_cls)
 
 
 """Backup and overwrite source code with mutated code
