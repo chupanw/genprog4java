@@ -32,11 +32,14 @@ public class AOR extends JavaEditOperation {
     public InfixExpression locationExpr;
     static Random rand = new Random(Configuration.seed);
 
+    public static final HashMap<ASTNode, List<TypeOpPair>> typeOpCache = new HashMap<>();
+
     public AOR(JavaLocation location, EditHole source) {
         super(location, source);
-        this.type = randomType();
         locationExpr = (InfixExpression) ((ExpHole)this.getHoleCode()).getLocationExp();
-        this.op = randomOp(locationExpr.getOperator());
+        TypeOpPair randomPair = generateRandomTypeOpFromCache(locationExpr);
+        this.type = randomPair.type;
+        this.op = randomPair.op;
     }
 
     @Override
@@ -67,6 +70,7 @@ public class AOR extends JavaEditOperation {
         method.setBody(body);
         method.setName(ast.newSimpleName(methodName));
         method.setReturnType2(ast.newSimpleType(ast.newName(this.type)));
+        // meta-program generation relies on this to find the right type
         if (addParameters) {
             SingleVariableDeclaration p1 = ast.newSingleVariableDeclaration();
             SingleVariableDeclaration p2 = ast.newSingleVariableDeclaration();
@@ -110,17 +114,27 @@ public class AOR extends JavaEditOperation {
         finalizer.markVariantMethod(locationExpr, md, true);
     }
 
-    private InfixExpression.Operator randomOp(InfixExpression.Operator original) {
-        ArrayList<InfixExpression.Operator> all = new ArrayList(Arrays.asList(
-                PLUS, MINUS, TIMES, DIVIDE, REMAINDER
-        ));
-        all.remove(original);
-        int idx = rand.nextInt(all.size());
-        return all.get(idx);
+    private TypeOpPair generateRandomTypeOpFromCache(InfixExpression locationExpr) {
+        List<TypeOpPair> allPairs = genAllPairs(locationExpr);
+        if (typeOpCache.containsKey(locationExpr)) {
+            List<TypeOpPair> existing = typeOpCache.get(locationExpr);
+            allPairs.removeAll(existing);
+        }
+        int idx = rand.nextInt(allPairs.size());
+        TypeOpPair res = allPairs.get(idx);
+        if (typeOpCache.containsKey(locationExpr)) {
+            typeOpCache.get(locationExpr).add(res);
+        }
+        else {
+            ArrayList<TypeOpPair> l = new ArrayList<>();
+            l.add(res);
+            typeOpCache.put(locationExpr, l);
+        }
+        return res;
     }
 
-    private String randomType() {
-        List<String> all = Arrays.asList(
+    private List<TypeOpPair> genAllPairs(InfixExpression locationExpr) {
+        List<String> allTypes = Arrays.asList(
                 "java.lang.Integer",
                 "java.lang.Character",
                 "java.lang.Short",
@@ -128,8 +142,15 @@ public class AOR extends JavaEditOperation {
                 "java.lang.Double",
                 "java.lang.Float"
         );
-        int idx = rand.nextInt(all.size());
-        return all.get(idx);
+        List<InfixExpression.Operator> allOps = Arrays.asList(PLUS, MINUS, TIMES, DIVIDE, REMAINDER);
+        allOps.remove(locationExpr.getOperator());
+        List<TypeOpPair> res = new ArrayList<>();
+        for (String t : allTypes) {
+            for (InfixExpression.Operator op : allOps) {
+                res.add(new TypeOpPair(t, op));
+            }
+        }
+        return res;
     }
 
 
@@ -195,5 +216,24 @@ public class AOR extends JavaEditOperation {
         else {
             throw new RuntimeException("No surrounding type declaration");
         }
+    }
+}
+
+class TypeOpPair {
+    String type;
+    InfixExpression.Operator op;
+
+    TypeOpPair(String type, InfixExpression.Operator op) {
+        this.type = type;
+        this.op = op;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj instanceof TypeOpPair) {
+            TypeOpPair that = (TypeOpPair) obj;
+            return this.type.equals(that.type) && this.op == that.op;
+        }
+        return false;
     }
 }

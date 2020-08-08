@@ -20,11 +20,13 @@ import static org.eclipse.jdt.core.dom.InfixExpression.Operator.CONDITIONAL_OR;
  */
 public class LCR extends JavaEditOperation {
 
-    InfixExpression locationExpr = (InfixExpression) ((ExpHole)this.getHoleCode()).getLocationExp();
-    Expression newExpr = mutate(locationExpr.getAST(), (InfixExpression) ASTNode.copySubtree(locationExpr.getAST(), locationExpr), false);
+    InfixExpression locationExpr;
+    InfixExpression.Operator op;
 
     public LCR(JavaLocation location, EditHole source) {
         super(location, source);
+        this.locationExpr = (InfixExpression) ((ExpHole)this.getHoleCode()).getLocationExp();
+        this.op = locationExpr.getOperator() == CONDITIONAL_AND ? CONDITIONAL_OR : CONDITIONAL_AND;
     }
 
     @Override
@@ -34,7 +36,12 @@ public class LCR extends JavaEditOperation {
 
     @Override
     public void edit(ASTRewrite rewriter) {
-        rewriter.replace(locationExpr, newExpr, null);
+        AST ast = rewriter.getAST();
+        InfixExpression replacement = ast.newInfixExpression();
+        replacement.setOperator(this.op);
+        replacement.setLeftOperand((Expression) ASTNode.copySubtree(ast, locationExpr.getLeftOperand()));
+        replacement.setRightOperand((Expression) ASTNode.copySubtree(ast, locationExpr.getRightOperand()));
+        rewriter.replace(locationExpr, replacement, null);
     }
 
     @Override
@@ -48,8 +55,7 @@ public class LCR extends JavaEditOperation {
         vm.setName(ast.newSimpleName(this.getVariantFolder()));
         vm.setReturnType2(ast.newPrimitiveType((PrimitiveType.BOOLEAN)));
 
-        Expression mutated = mutate(ast, locationExprCopy, true);
-        newExpr = mutated;
+        Expression mutated = mutate(ast, locationExprCopy);
         ReturnStatement ret = ast.newReturnStatement();
         ret.setExpression(mutated);
         body.statements().add(ret);
@@ -62,7 +68,7 @@ public class LCR extends JavaEditOperation {
         finalizer.markVariantMethod(locationExpr, vm, true);
     }
 
-    private Expression mutate(AST ast, InfixExpression original, boolean useOptions) {
+    private Expression mutate(AST ast, InfixExpression original) {
         Expression otherwise = original;
         InfixExpression.Operator thenOp = CONDITIONAL_AND;
         String thenOpName = "AND";
@@ -72,11 +78,7 @@ public class LCR extends JavaEditOperation {
         }
 
         ConditionalExpression cond = ast.newConditionalExpression();
-        if (useOptions) {
-            cond.setExpression(getNextFieldAccess(ast, thenOpName));
-        } else {
-            cond.setExpression(ast.newBooleanLiteral(false));
-        }
+        cond.setExpression(getNextFieldAccess(ast, thenOpName));
         InfixExpression then = ast.newInfixExpression();
         then.setLeftOperand((Expression) ASTNode.copySubtree(ast, original.getLeftOperand()));
         then.setRightOperand((Expression) ASTNode.copySubtree(ast, original.getRightOperand()));
@@ -94,7 +96,7 @@ public class LCR extends JavaEditOperation {
         sb.append("LCR(" + this.getLocation().getId() + "): ");
         sb.append("(" + locationExpr.toString() + ")");
         sb.append(" -> ");
-        sb.append("(" + newExpr.toString() + ")");
+        sb.append("(" + locationExpr.getLeftOperand() + this.op + locationExpr.getRightOperand() + ")");
         return sb.toString();
     }
 }

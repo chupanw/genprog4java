@@ -9,24 +9,24 @@ import org.eclipse.jdt.core.dom.*;
 import org.eclipse.jdt.core.dom.rewrite.ASTRewrite;
 import org.eclipse.jdt.core.dom.rewrite.ListRewrite;
 
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Random;
+import java.util.*;
 
 
 public class UOI extends JavaEditOperation {
 
+    private static final HashMap<Expression, List<Pair>> typeOpCache = new HashMap<>();
     static Random rand = new Random(Configuration.seed);
+
     String type;
     String op;
     public Expression locationExpr;
 
     public UOI(JavaLocation location, EditHole source) {
         super(location, source);
-        this.type = randomType();
-        this.op = randomOp();
         locationExpr = ((ExpHole) this.getHoleCode()).getLocationExp();
+        Pair randomTypeOp = generateRandomTypeOpFromCache(locationExpr);
+        this.type = randomTypeOp.type;
+        this.op = randomTypeOp.op;
     }
 
     @Override
@@ -70,6 +70,44 @@ public class UOI extends JavaEditOperation {
         TypeDeclaration typeDecl = getTypeDeclaration(locationExpr);
         ListRewrite lsr = rewriter.getListRewrite(typeDecl, TypeDeclaration.BODY_DECLARATIONS_PROPERTY);
         lsr.insertLast(method, null);
+    }
+
+    private Pair generateRandomTypeOpFromCache(Expression locationExpr) {
+        List<Pair> allPairs = genAllPairs();
+        if (typeOpCache.containsKey(locationExpr)) {
+            List<Pair> existing = typeOpCache.get(locationExpr);
+            allPairs.removeAll(existing);
+        }
+        int idx = rand.nextInt(allPairs.size());
+        Pair res = allPairs.get(idx);
+        if (typeOpCache.containsKey(locationExpr)) {
+            typeOpCache.get(locationExpr).add(res);
+        }
+        else {
+            ArrayList<Pair> l = new ArrayList<>();
+            l.add(res);
+            typeOpCache.put(locationExpr, l);
+        }
+        return res;
+    }
+
+    private List<Pair> genAllPairs() {
+        List<String> allTypes = Arrays.asList(
+                "java.lang.Integer",
+                "java.lang.Character",
+                "java.lang.Short",
+                "java.lang.Long",
+                "java.lang.Double",
+                "java.lang.Float"
+        );
+        List<String> allOps = Arrays.asList("PRE_INC", "PRE_DEC", "POST_INC", "POST_DEC");
+        List<Pair> res = new ArrayList<>();
+        for (String t : allTypes) {
+            for (String op : allOps) {
+                res.add(new Pair(t, op));
+            }
+        }
+        return res;
     }
 
     @Override
@@ -157,34 +195,13 @@ public class UOI extends JavaEditOperation {
         return otherwise;
     }
 
-    private String randomType() {
-        List<String> all = Arrays.asList(
-                "java.lang.Integer",
-                "java.lang.Character",
-                "java.lang.Short",
-                "java.lang.Long",
-                "java.lang.Double",
-                "java.lang.Float"
-        );
-        int idx = rand.nextInt(all.size());
-        return all.get(idx);
-    }
-
-    private String randomOp() {
-        String[] all = new String[] {
-                "PRE_INC", "PRE_DEC", "POST_INC", "POST_DEC"
-        };
-        int idx = rand.nextInt(4);
-        return all[idx];
-    }
-
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder();
         sb.append("UOI(" + this.getLocation().getId() + "): ");
         sb.append("(" + locationExpr.toString() + ")");
         sb.append(" -> ");
-        sb.append("(" + "++/--" + locationExpr.toString() + "++/--" + ")");
+        sb.append("(" + this.op + " " + locationExpr.toString() + ")");
         return sb.toString();
     }
 
@@ -200,5 +217,24 @@ public class UOI extends JavaEditOperation {
         else {
             throw new RuntimeException("No surrounding type declaration");
         }
+    }
+}
+
+class Pair {
+    String type;
+    String op;
+
+    Pair(String type, String op) {
+        this.type = type;
+        this.op = op;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (obj instanceof Pair) {
+            Pair that = (Pair) obj;
+            return this.type.equals(that.type) && this.op.equals(that.op);
+        }
+        return false;
     }
 }
