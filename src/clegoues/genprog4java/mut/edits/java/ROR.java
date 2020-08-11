@@ -95,9 +95,9 @@ public class ROR extends JavaEditOperation {
     }
 
     private InfixExpression.Operator generateRandomOpFromCache(InfixExpression locationExpr) {
-        List<InfixExpression.Operator> allOps = Arrays.asList(
+        List<InfixExpression.Operator> allOps = new ArrayList<>(Arrays.asList(
                 LESS, LESS_EQUALS, NOT_EQUALS, EQUALS, GREATER, GREATER_EQUALS
-        );
+        ));
         if (opCache.containsKey(locationExpr)) {
             List<InfixExpression.Operator> existing = opCache.get(locationExpr);
             allOps.removeAll(existing);
