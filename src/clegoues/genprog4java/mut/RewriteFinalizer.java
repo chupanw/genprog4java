@@ -66,8 +66,8 @@ public class RewriteFinalizer extends ASTVisitor {
     }
 
     private void storeAndRestoreStates(VarNamesCollector collector, MethodDeclaration mutatedMethod) {
-        StoreStateBeforeMethodCallVisitor stateRestoreVisitor = new StoreStateBeforeMethodCallVisitor(collector, rewriter);
-        stateRestoreVisitor.writeStoreAndRestoreToClass(mutatedMethod);
+        StoreStateBeforeMethodCallVisitor stateRestoreVisitor = new StoreStateBeforeMethodCallVisitor(collector, rewriter, mutatedMethod);
+        stateRestoreVisitor.writeStoreAndRestoreToClass();
 
         mutatedMethod.accept(stateRestoreVisitor);
         for (MethodDeclaration m : method2Variants.get(mutatedMethod)) {
@@ -760,14 +760,17 @@ class StoreStateBeforeMethodCallVisitor extends ASTVisitor {
     VarNamesCollector collector;
     String id;  // we need different IDs for different mutated methods
     ASTRewrite rewriter;
+    TypeDeclaration mutatedClass;
 
+    HashSet<String> localMethodNames;
     List<MyParameter> sortedVariables;
     AST ast;
     HashSet<ASTNode> cache;
 
-    StoreStateBeforeMethodCallVisitor(VarNamesCollector collector, ASTRewrite rewriter) {
+    StoreStateBeforeMethodCallVisitor(VarNamesCollector collector, ASTRewrite rewriter, MethodDeclaration mutatedMethod) {
         this.collector = collector;
         this.rewriter = rewriter;
+        this.mutatedClass = RewriteFinalizer.getTypeDeclaration(mutatedMethod);
 
         cache = new HashSet<>();
         this.ast = rewriter.getAST();
@@ -776,11 +779,14 @@ class StoreStateBeforeMethodCallVisitor extends ASTVisitor {
         sortedVariables.addAll(collector.localVariables);
         sortedVariables.addAll(collector.parameters);
         sortedVariables.sort((a, b) -> a.getName().getIdentifier().compareTo(b.getName().getIdentifier()));
+        localMethodNames = new HashSet<>();
+        for (MethodDeclaration m : mutatedClass.getMethods()) {
+            localMethodNames.add(m.getName().getIdentifier());
+        }
     }
 
-    public void writeStoreAndRestoreToClass(MethodDeclaration mutatedMethod) {
-        TypeDeclaration cls = RewriteFinalizer.getTypeDeclaration(mutatedMethod);
-        ListRewrite lsr = rewriter.getListRewrite(cls, TypeDeclaration.BODY_DECLARATIONS_PROPERTY);
+    public void writeStoreAndRestoreToClass() {
+        ListRewrite lsr = rewriter.getListRewrite(mutatedClass, TypeDeclaration.BODY_DECLARATIONS_PROPERTY);
 
         // stack field
         ClassInstanceCreation cic = ast.newClassInstanceCreation();
@@ -832,19 +838,20 @@ class StoreStateBeforeMethodCallVisitor extends ASTVisitor {
 
     @Override
     public boolean visit(MethodInvocation node) {
-        if (node.getParent() instanceof ExpressionStatement) {
+        if (node.getParent() instanceof ExpressionStatement && localMethodNames.contains(node.getName().getIdentifier())) {
             replace(node);
         }
         return false;
     }
 
-    @Override
-    public boolean visit(ClassInstanceCreation node) {
-        if (node.getParent() instanceof ExpressionStatement) {
-            replace(node);
-        }
-        return false;
-    }
+    // let's assume instance creation does not usually create recursive calls
+//    @Override
+//    public boolean visit(ClassInstanceCreation node) {
+//        if (node.getParent() instanceof ExpressionStatement && localMethodNames.contains()) {
+//            replace(node);
+//        }
+//        return false;
+//    }
 
     private void replace(ASTNode node) {
         Block closestBlock = RewriteFinalizer.getBlock(node);
