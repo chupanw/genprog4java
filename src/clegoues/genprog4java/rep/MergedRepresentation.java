@@ -167,6 +167,18 @@ public class MergedRepresentation extends JavaRepresentation {
                     exclude(toRemove, e);
                 }
             }
+            // exclude edits that append/replace loops or potential recursive calls
+            // update: we might not need this anymore because we have a smarter block count reset
+            // that checks the empty config
+//            StatementTypeVisitor stmtVisitor = new StatementTypeVisitor();
+//            if (fixHole != null && fixHole.getCode() != null) {
+//                ASTNode fixCode = (ASTNode) fixHole.getCode();
+//                stmtVisitor.markLocalMethods(fixCode);
+//                fixCode.accept(stmtVisitor);
+//            }
+//            if (stmtVisitor.hasLoop || stmtVisitor.hasLocalMethodCall) {
+//                exclude(toRemove, e);
+//            }
         }
         compilableEdits.removeAll(toRemove);
     }
@@ -322,5 +334,66 @@ public class MergedRepresentation extends JavaRepresentation {
         }
         this.getGenome().removeAll(expMutations);
         this.getGenome().addAll(expMutations);
+    }
+}
+
+class StatementTypeVisitor extends ASTVisitor {
+    boolean hasLoop = false;
+    boolean hasLocalMethodCall = false;
+
+    HashSet<String> localMethodNames = new HashSet<>();
+
+    public void markLocalMethods(ASTNode startingFrom) {
+        TypeDeclaration cls = getTypeDeclaration(startingFrom);
+        MethodDeclaration[] allMethods = cls.getMethods();
+        for (MethodDeclaration m : allMethods) {
+            localMethodNames.add(m.getName().getIdentifier());
+        }
+    }
+
+    private TypeDeclaration getTypeDeclaration(ASTNode n) {
+        if (n != null) {
+            if (n instanceof TypeDeclaration) {
+                return (TypeDeclaration) n;
+            }
+            else {
+                return getTypeDeclaration(n.getParent());
+            }
+        }
+        else {
+            throw new RuntimeException("No surrounding type declaration");
+        }
+    }
+
+    @Override
+    public boolean visit(MethodInvocation node) {
+        if (localMethodNames.contains(node.getName().getIdentifier())) {
+            hasLocalMethodCall = true;
+        }
+        return super.visit(node);
+    }
+
+    @Override
+    public boolean visit(EnhancedForStatement node) {
+        hasLoop = true;
+        return super.visit(node);
+    }
+
+    @Override
+    public boolean visit(ForStatement node) {
+        hasLoop = true;
+        return super.visit(node);
+    }
+
+    @Override
+    public boolean visit(WhileStatement node) {
+        hasLoop = true;
+        return super.visit(node);
+    }
+
+    @Override
+    public boolean visit(DoStatement node) {
+        hasLoop = true;
+        return super.visit(node);
     }
 }
