@@ -146,7 +146,7 @@ public class AOR extends JavaEditOperation {
                 "java.lang.Double",
                 "java.lang.Float"
         );
-        List<InfixExpression.Operator> allOps = Arrays.asList(PLUS, MINUS, TIMES, DIVIDE, REMAINDER);
+        List<InfixExpression.Operator> allOps = new ArrayList<>(Arrays.asList(PLUS, MINUS, TIMES, DIVIDE, REMAINDER));
         allOps.remove(locationExpr.getOperator());
         List<TypeOpPair> res = new ArrayList<>();
         for (String t : allTypes) {
