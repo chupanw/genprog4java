@@ -20,6 +20,7 @@ public class UOI extends JavaEditOperation {
     String type;
     String op;
     public Expression locationExpr;
+    private String variantOption;
 
     public UOI(JavaLocation location, EditHole source) {
         super(location, source);
@@ -78,8 +79,11 @@ public class UOI extends JavaEditOperation {
             List<Pair> existing = typeOpCache.get(locationExpr);
             allPairs.removeAll(existing);
         }
-        int idx = rand.nextInt(allPairs.size());
-        Pair res = allPairs.get(idx);
+        Pair res = new Pair("java.lang.Integer", "PRE_INC");
+        if (allPairs.size() > 0) {
+            int idx = rand.nextInt(allPairs.size());
+            res = allPairs.get(idx);
+        }
         if (typeOpCache.containsKey(locationExpr)) {
             typeOpCache.get(locationExpr).add(res);
         }
@@ -217,6 +221,27 @@ public class UOI extends JavaEditOperation {
         else {
             throw new RuntimeException("No surrounding type declaration");
         }
+    }
+
+    @Override
+    public String getVariantOption() {
+        return this.variantOption;
+    }
+
+    @Override
+    public void setVariantOption(String optionName) {
+        this.variantOption = optionName;
+    }
+
+    @Override
+    public String getVariantOptionSuffix() {
+        return this.op;
+    }
+
+    @Override
+    public void setVariantFolder(String f) {
+        super.setVariantFolder(f);
+        this.variantOption = getVariantFolder() + "_" + getVariantOptionSuffix();
     }
 }
 

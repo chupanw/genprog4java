@@ -21,8 +21,9 @@ import static org.eclipse.jdt.core.dom.InfixExpression.Operator.*;
  */
 public class ROR extends JavaEditOperation {
 
-    InfixExpression locationExpr;
+    public InfixExpression locationExpr;
     InfixExpression.Operator op;    // used only in plain GenProg
+    private String variantOption;
 
     public static final HashMap<InfixExpression, List<InfixExpression.Operator>> opCache = new HashMap<>();
     final static Random rand = new Random(Configuration.seed);
@@ -102,8 +103,11 @@ public class ROR extends JavaEditOperation {
             List<InfixExpression.Operator> existing = opCache.get(locationExpr);
             allOps.removeAll(existing);
         }
-        int idx = rand.nextInt(allOps.size());
-        InfixExpression.Operator res = allOps.get(idx);
+        InfixExpression.Operator res = LESS;
+        if (allOps.size() > 0) {
+            int idx = rand.nextInt(allOps.size());
+            res = allOps.get(idx);
+        }
         if (opCache.containsKey(locationExpr)) {
             opCache.get(locationExpr).add(res);
         }
@@ -134,6 +138,26 @@ public class ROR extends JavaEditOperation {
         }
     }
 
+    @Override
+    public String getVariantOption() {
+        return this.variantOption;
+    }
+
+    @Override
+    public void setVariantOption(String optionName) {
+        this.variantOption = optionName;
+    }
+
+    @Override
+    public String getVariantOptionSuffix() {
+        return opToString(this.op);
+    }
+
+    @Override
+    public void setVariantFolder(String f) {
+        super.setVariantFolder(f);
+        this.variantOption = getVariantFolder() + "_" + getVariantOptionSuffix();
+    }
 
     @Override
     public String toString() {

@@ -26,6 +26,9 @@ public class RewriteFinalizer extends ASTVisitor {
     private HashSet<MethodDeclaration> needsContinueCheck = new HashSet<>();
     private HashMap<MethodDeclaration, VariantCallsite> variant2Callsite = new HashMap<>();
     private HashMap<MethodDeclaration, HashSet<MethodDeclaration>> method2Variants = new HashMap<>();
+    /**
+     * Applicable to all expression level operators
+     */
     private HashSet<MethodDeclaration> variantsWithoutRewritingReturn = new HashSet<>();
 
     private ASTRewrite rewriter;

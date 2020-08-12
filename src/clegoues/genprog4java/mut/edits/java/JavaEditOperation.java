@@ -81,6 +81,31 @@ public abstract class JavaEditOperation implements EditOperation<ASTRewrite> {
 		return variantFolder;
 	}
 
+	/**
+	 * Used in EXISTING mode to set the boolean value
+     *
+	 * In most cases, should be the same as the variantFolder, but basic mutation operators might have some
+	 * suffixes, hence this helper method
+     *
+	 * Override by {@link AOR}, {@link ROR}, {@link UOI}
+	 */
+	public String getVariantOption() {
+		return getVariantFolder();
+	}
+
+	/**
+	 * Override by {@link AOR}, {@link ROR}, {@link UOI}
+	 */
+	public void setVariantOption(String optionName) {
+	}
+
+	/**
+	 * Override by {@link AOR}, {@link ROR}, {@link UOI}
+	 */
+	public String getVariantOptionSuffix() {
+		return "";
+	}
+
 	public void setVariantFolder(String f) {
 	    if (variantFolder != null)
 	    	throw new RuntimeException("Overwriting existing variantFolder");

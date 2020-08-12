@@ -30,6 +30,7 @@ public class AOR extends JavaEditOperation {
     String type;
     InfixExpression.Operator op;
     public InfixExpression locationExpr;
+    private String variationOption;
     static Random rand = new Random(Configuration.seed);
 
     public static final HashMap<ASTNode, List<TypeOpPair>> typeOpCache = new HashMap<>();
@@ -120,8 +121,11 @@ public class AOR extends JavaEditOperation {
             List<TypeOpPair> existing = typeOpCache.get(locationExpr);
             allPairs.removeAll(existing);
         }
-        int idx = rand.nextInt(allPairs.size());
-        TypeOpPair res = allPairs.get(idx);
+        TypeOpPair res = new TypeOpPair("java.lang.Integer", PLUS);
+        if (allPairs.size() > 0) {
+            int idx = rand.nextInt(allPairs.size());
+            res = allPairs.get(idx);
+        }
         if (typeOpCache.containsKey(locationExpr)) {
             typeOpCache.get(locationExpr).add(res);
         }
@@ -216,6 +220,28 @@ public class AOR extends JavaEditOperation {
         else {
             throw new RuntimeException("No surrounding type declaration");
         }
+    }
+
+
+    @Override
+    public String getVariantOption() {
+        return variationOption;
+    }
+
+    @Override
+    public void setVariantOption(String optionName) {
+        this.variationOption = optionName;
+    }
+
+    @Override
+    public String getVariantOptionSuffix() {
+        return opToString(this.op);
+    }
+
+    @Override
+    public void setVariantFolder(String f) {
+        super.setVariantFolder(f);
+        this.variationOption = getVariantFolder() + "_" + getVariantOptionSuffix();
     }
 }
 

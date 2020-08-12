@@ -9,10 +9,7 @@ import clegoues.genprog4java.main.Configuration;
 import clegoues.genprog4java.mut.EditHole;
 import clegoues.genprog4java.mut.EditOperation;
 import clegoues.genprog4java.mut.RewriteFinalizer;
-import clegoues.genprog4java.mut.edits.java.AOR;
-import clegoues.genprog4java.mut.edits.java.JavaEditOperation;
-import clegoues.genprog4java.mut.edits.java.JavaEditPool;
-import clegoues.genprog4java.mut.edits.java.UOI;
+import clegoues.genprog4java.mut.edits.java.*;
 import clegoues.genprog4java.mut.holes.java.JavaLocation;
 import clegoues.genprog4java.mut.holes.java.StatementHole;
 import clegoues.genprog4java.mut.varexc.VarexCGlobal;
@@ -64,9 +61,10 @@ public class MergedRepresentation extends JavaRepresentation {
         sortGenome();
         putExpMutationToEnd();
         collectEdits();
-        excludeRepetitive();
         excludeEdits();
+        HashSet<EditOperation> toRemove = excludeRepetitive();
         serializeEdits();
+        compilableEdits.removeAll(toRemove);    // the actual removal should come after serialization so that single edits can be preserved
         ArrayList<Pair<ClassInfo, String>> retVal = new ArrayList<Pair<ClassInfo, String>>();
         for (Map.Entry<ClassInfo, String> pair : sourceInfo.getOriginalSource().entrySet()) {
             ClassInfo ci = pair.getKey();
@@ -183,29 +181,47 @@ public class MergedRepresentation extends JavaRepresentation {
         compilableEdits.removeAll(toRemove);
     }
 
-    private void excludeRepetitive() {
+    private HashSet<EditOperation> excludeRepetitive() {
         HashSet<EditOperation> toRemove = new HashSet<>();
-        HashSet<Expression> uniqueAORLocation = new HashSet<>();
-        HashSet<Expression> uniqueUOILocation = new HashSet<>();
+        // the value is the variant folder name that will be kept in the meta program
+        HashMap<Expression, String> uniqueAORLocation = new HashMap<>();
+        HashMap<Expression, String> uniqueUOILocation = new HashMap<>();
+        HashMap<Expression, String> uniqueRORLocation = new HashMap<>();
+        // no need for LCR and ABS as they have only one variant
         for (EditOperation e : compilableEdits) {
             if (e instanceof AOR) {
-                if (uniqueAORLocation.contains(((AOR) e).locationExpr)) {
-                    exclude(toRemove, e);
+                if (uniqueAORLocation.containsKey(((AOR) e).locationExpr)) {
+                    excludeAndResetVariantOption(toRemove, e, uniqueAORLocation.get(((AOR) e).locationExpr));
                 }
                 else {
-                    uniqueAORLocation.add(((AOR) e).locationExpr);
+                    uniqueAORLocation.put(((AOR) e).locationExpr, e.getVariantFolder());
                 }
             }
             if (e instanceof UOI) {
-                if (uniqueUOILocation.contains(((UOI) e).locationExpr)) {
-                    exclude(toRemove, e);
+                if (uniqueUOILocation.containsKey(((UOI) e).locationExpr)) {
+                    excludeAndResetVariantOption(toRemove, e, uniqueUOILocation.get(((UOI) e).locationExpr));
                 }
                 else {
-                    uniqueUOILocation.add(((UOI) e).locationExpr);
+                    uniqueUOILocation.put(((UOI) e).locationExpr, e.getVariantFolder());
+                }
+            }
+            if (e instanceof ROR) {
+                if (uniqueRORLocation.containsKey(((ROR) e).locationExpr)) {
+                    excludeAndResetVariantOption(toRemove, e, uniqueRORLocation.get(((ROR) e).locationExpr));
+                }
+                else {
+                    uniqueRORLocation.put(((ROR) e).locationExpr, e.getVariantFolder());
                 }
             }
         }
-        compilableEdits.removeAll(toRemove);
+        return toRemove;
+    }
+
+    private void excludeAndResetVariantOption(Set<EditOperation> set, EditOperation e, String finalVariantFolder) {
+        String optionName = finalVariantFolder + "_" + ((JavaEditOperation) e).getVariantOptionSuffix();
+        ((JavaEditOperation) e).setVariantOption(optionName);
+        logger.info("Resetting variant option of " + e.toString() + " to " + optionName + ", will be excluded after serialization");
+        set.add(e);
     }
 
     private void exclude(Set<EditOperation> set, EditOperation e) {

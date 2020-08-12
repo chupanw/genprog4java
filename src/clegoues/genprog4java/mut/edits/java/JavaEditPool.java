@@ -29,7 +29,7 @@ public class JavaEditPool implements Serializable {
     public void addEdits(Set<JavaEditOperation> set, boolean canCompile) {
         for (JavaEditOperation e : set) {
             if (isToStringOverridden(e)) {
-                JavaSavedEdit saved = new JavaSavedEdit(e.toString(), e.getVariantFolder(), canCompile);
+                JavaSavedEdit saved = new JavaSavedEdit(e.toString(), e.getVariantOption(), canCompile);
                 edits.add(saved);
             } else {
                 throw new RuntimeException("Make sure " + e.getClass().getName() + " overrides toString()");
