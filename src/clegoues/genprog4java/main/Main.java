@@ -55,6 +55,7 @@ public class Main {
 
 	public static void main(String[] args) throws IOException,
 	UnexpectedCoverageResultException {
+		Solutions.startTime = System.currentTimeMillis();
 		Search searchEngine = null;
 		Representation baseRep = null;
 		Fitness fitnessEngine = null;
@@ -118,6 +119,7 @@ public class Main {
 		}
 		int elapsed = getElapsedTime(startTime);
 		logger.info("\nTotal elapsed time: " + elapsed + "\n");
+		Solutions.closeFile();
 		Runtime.getRuntime().exit(0);
 	}
 

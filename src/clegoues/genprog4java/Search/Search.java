@@ -39,6 +39,7 @@ import clegoues.genprog4java.fitness.Fitness;
 import clegoues.genprog4java.localization.Localization;
 import clegoues.genprog4java.localization.Location;
 import clegoues.genprog4java.main.Configuration;
+import clegoues.genprog4java.main.Solutions;
 import clegoues.genprog4java.mut.EditOperation;
 import clegoues.genprog4java.mut.Mutation;
 import clegoues.genprog4java.mut.WeightedHole;
@@ -103,9 +104,10 @@ public abstract class Search<G extends EditOperation> {
 			.inGroup( "Search Parameters" )
 			.build();
 	//private static boolean continueSearch = false;
-	static boolean continueSearch = ConfigurationBuilder.of( BOOLEAN )
+	static boolean continueSearch = ConfigurationBuilder.of( BOOL_ARG )
 			.withVarName( "continueSearch" )
 			.withFlag( "continue" )
+			.withDefault("false")
 			.withHelp( "continue searching after finding a repair" )
 			.inGroup( "Search Parameters" )
 			.build();
@@ -215,6 +217,7 @@ public abstract class Search<G extends EditOperation> {
 			int generation) {
 
 		logger.info("\nRepair Found: " + rep.getName() + " (in " + rep.getVariantFolder() + ")\n");
+		Solutions.markSolution(rep, generation);
 		File repairDir = new File("repair/");
 		if (!repairDir.exists())
 			repairDir.mkdir();
