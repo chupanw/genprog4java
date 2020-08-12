@@ -135,10 +135,16 @@ public class UOI extends JavaEditOperation {
         method.setName(ast.newSimpleName(methodName));
         method.setReturnType2(ast.newSimpleType(ast.newName(this.type)));
         if (addParameters) {
+            // GenProg mode, use parameter to find the correct type
             SingleVariableDeclaration p1 = ast.newSingleVariableDeclaration();
             p1.setType(ast.newSimpleType(ast.newName(this.type)));
             p1.setName(ast.newSimpleName("original"));
             method.parameters().add(p1);
+            // add the mutated expression to catch corner cases like (-a)++
+            PostfixExpression dummy = ast.newPostfixExpression();
+            dummy.setOperator(PostfixExpression.Operator.INCREMENT);
+            dummy.setOperand(((Expression) ASTNode.copySubtree(ast, locationExpr)));
+            body.statements().add(ast.newExpressionStatement(dummy));
         }
         ReturnStatement ret = ast.newReturnStatement();
         ret.setExpression(returnExpression);
@@ -166,28 +172,36 @@ public class UOI extends JavaEditOperation {
             ConditionalExpression cond = ast.newConditionalExpression();
             cond.setExpression(getNextFieldAccess(ast, optionNames[i]));
             switch (i) {
-                case 1:
+                case 0:
                     PrefixExpression prefix = ast.newPrefixExpression();
                     prefix.setOperator(PrefixExpression.Operator.INCREMENT);
-                    prefix.setOperand((Expression) ASTNode.copySubtree(ast, original));
+                    ParenthesizedExpression pe1 = ast.newParenthesizedExpression();
+                    pe1.setExpression((Expression) ASTNode.copySubtree(ast, original));
+                    prefix.setOperand(pe1);
                     cond.setThenExpression(prefix);
                     break;
-                case 2:
+                case 1:
                     PrefixExpression prefix2 = ast.newPrefixExpression();
                     prefix2.setOperator(PrefixExpression.Operator.DECREMENT);
-                    prefix2.setOperand((Expression) ASTNode.copySubtree(ast, original));
+                    ParenthesizedExpression pe2 = ast.newParenthesizedExpression();
+                    pe2.setExpression((Expression) ASTNode.copySubtree(ast, original));
+                    prefix2.setOperand(pe2);
                     cond.setThenExpression(prefix2);
                     break;
-                case 3:
+                case 2:
                     PostfixExpression postfix = ast.newPostfixExpression();
                     postfix.setOperator(PostfixExpression.Operator.INCREMENT);
-                    postfix.setOperand((Expression) ASTNode.copySubtree(ast, original));
+                    ParenthesizedExpression pe3 = ast.newParenthesizedExpression();
+                    pe3.setExpression((Expression) ASTNode.copySubtree(ast, original));
+                    postfix.setOperand(pe3);
                     cond.setThenExpression(postfix);
                     break;
                 default:
                     PostfixExpression postfix2 = ast.newPostfixExpression();
                     postfix2.setOperator(PostfixExpression.Operator.DECREMENT);
-                    postfix2.setOperand((Expression) ASTNode.copySubtree(ast, original));
+                    ParenthesizedExpression pe4 = ast.newParenthesizedExpression();
+                    pe4.setExpression((Expression) ASTNode.copySubtree(ast, original));
+                    postfix2.setOperand(pe4);
                     cond.setThenExpression(postfix2);
                     break;
             }
