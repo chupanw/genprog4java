@@ -26,6 +26,7 @@ public class RewriteFinalizer extends ASTVisitor {
     private HashSet<MethodDeclaration> needsContinueCheck = new HashSet<>();
     private HashMap<MethodDeclaration, VariantCallsite> variant2Callsite = new HashMap<>();
     private HashMap<MethodDeclaration, HashSet<MethodDeclaration>> method2Variants = new HashMap<>();
+    private HashMap<ASTNode, MethodDeclaration> firstModifiedInVariant = new HashMap<>();
     /**
      * Applicable to all expression level operators
      */
@@ -202,7 +203,10 @@ public class RewriteFinalizer extends ASTVisitor {
         }
     }
 
-    public void checkSpecialStatements(Statement locationNode, Statement fixCodeNode, HashMap<ASTNode, List<ASTNode>> nodeStore) {
+    public void checkSpecialStatements(Statement locationNode, Statement fixCodeNode, MethodDeclaration variantMethod, HashMap<ASTNode, List<ASTNode>> nodeStore) {
+        if (!firstModifiedInVariant.containsKey(locationNode)) {
+            firstModifiedInVariant.put(locationNode, variantMethod);
+        }
         CheckBreakContinueReturnVisitor locationNodeCheck = new CheckBreakContinueReturnVisitor();
         CheckBreakContinueReturnVisitor fixCodeNodeCheck = new CheckBreakContinueReturnVisitor();
         locationNode.accept(locationNodeCheck);
@@ -216,13 +220,19 @@ public class RewriteFinalizer extends ASTVisitor {
         }
         if (locationNodeCheck.hasReturn || fixCodeNodeCheck.hasReturn) {
             needsReturnCheck.addAll(chain);
+            // todo: this is likely wrong, causing the old error of Closure-1b, but shouldn't matter for IntroClass
+            //  we might need to do something similar to the break check below
             needsReturnCheckAndFirst.add(chain.get(0));
         }
         else if (locationNodeCheck.hasBreak || fixCodeNodeCheck.hasBreak) {
-            needsBreakCheck.addAll(chain);
+            if (firstModifiedInVariant.get(locationNode) == variantMethod) {
+                needsBreakCheck.add(variantMethod);
+            }
         }
         else if (locationNodeCheck.hasContinue || fixCodeNodeCheck.hasContinue) {
-            needsContinueCheck.addAll(chain);
+            if (firstModifiedInVariant.get(locationNode) == variantMethod) {
+                needsContinueCheck.add(variantMethod);
+            }
         }
     }
 

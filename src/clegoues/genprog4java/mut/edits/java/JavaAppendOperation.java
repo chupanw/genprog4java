@@ -118,9 +118,10 @@ public class JavaAppendOperation extends JavaEditOperation {
 			Block block = ast.newBlock();
 			block.statements().add(mis);
 
+			// Note: the order of the following calls matters!
 			applyEditAndUpdateNodeStore(rewriter, block, nodeStore, locationNode, locationNodeCopy);
 			finalizer.markVariantMethod(locationNode, vm, false);
-			finalizer.checkSpecialStatements((Statement) locationNode, (Statement) fixCodeNodeCopy, nodeStore);
+			finalizer.checkSpecialStatements((Statement) locationNode, (Statement) fixCodeNodeCopy, vm, nodeStore);
 			finalizer.recordVariantCallsite(locationNode, vm, block);
 		}
 		else {
