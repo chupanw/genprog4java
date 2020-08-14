@@ -225,15 +225,45 @@ public class RewriteFinalizer extends ASTVisitor {
             needsReturnCheckAndFirst.add(chain.get(0));
         }
         else if (locationNodeCheck.hasBreak || fixCodeNodeCheck.hasBreak) {
-            if (firstModifiedInVariant.get(locationNode) == variantMethod) {
-                needsBreakCheck.add(variantMethod);
-            }
+            MethodDeclaration closestBreakPoint = findCloeseCheckPoint(locationNode);
+            needsBreakCheck.add(closestBreakPoint);
         }
         else if (locationNodeCheck.hasContinue || fixCodeNodeCheck.hasContinue) {
-            if (firstModifiedInVariant.get(locationNode) == variantMethod) {
-                needsContinueCheck.add(variantMethod);
-            }
+            MethodDeclaration closestContinuePoint = findCloeseCheckPoint(locationNode);
+            needsContinueCheck.add(closestContinuePoint);
         }
+    }
+
+    /**
+     * Go up the hierarchy to find the right point to insert break check
+     *
+     * for (...) {
+     *     if (...) {
+     *         break;
+     *     }
+     * }
+     *
+     * If the if statement is moved into variant1 and the break is moved into variant2,
+     * needsBreakCheck should store variant1 instead of variant2, although variant2 is where the break statement is first modified
+     *
+     * @param locationNode the break in the above example, or any statement can be validly replaced by a break;
+     */
+    private MethodDeclaration findCloeseCheckPoint(ASTNode locationNode) {
+        MethodDeclaration res = firstModifiedInVariant.get(locationNode);
+        ASTNode current = locationNode.getParent();
+        while (current != null && !isLoop(current)) {
+            if (firstModifiedInVariant.containsKey(current))
+                res = firstModifiedInVariant.get(current);
+            current = current.getParent();
+        }
+        return res;
+    }
+
+    private boolean isLoop(ASTNode n) {
+        if (n instanceof WhileStatement || n instanceof ForStatement || n instanceof EnhancedForStatement || n instanceof DoStatement)
+            return true;
+        else
+            return false;
     }
 
     /**
@@ -243,7 +273,7 @@ public class RewriteFinalizer extends ASTVisitor {
      * @param callsite  a block with a single method call to this variant method
      */
     public void recordVariantCallsite(ASTNode locationNode, MethodDeclaration variantMethod, Block callsite) {
-        boolean isInLoop = isInsideLoop(locationNode);
+        boolean isInLoop = isInsideLoop(locationNode.getParent());
         variant2Callsite.put(variantMethod, new VariantCallsite(callsite, isInLoop));
     }
 

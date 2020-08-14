@@ -153,9 +153,9 @@ public class MergedRepresentation extends JavaRepresentation {
                 if (isAssignment2Final((Expression) code))
                     exclude(toRemove, e);
             }
-            else if (code instanceof BreakStatement || code instanceof ContinueStatement) {
-                exclude(toRemove, e);
-            }
+//            else if (code instanceof BreakStatement || code instanceof ContinueStatement) {
+//                exclude(toRemove, e);
+//            }
             else if (code instanceof Block) {
                 exclude(toRemove, e);
             }
