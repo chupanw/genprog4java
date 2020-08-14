@@ -139,7 +139,17 @@ public class RewriteFinalizer extends ASTVisitor {
                 fa.setExpression(ast.newThisExpression());
                 fa.setName(ast.newSimpleName(collector.hasBreakFieldName));
                 ifStmt.setExpression(fa);
-                ifStmt.setThenStatement(ast.newBreakStatement());
+
+                Block thenBlock = ast.newBlock();
+                // reset the break field after use
+                Assignment reset = ast.newAssignment();
+                reset.setLeftHandSide((Expression) ASTNode.copySubtree(ast, fa));
+                reset.setRightHandSide(ast.newBooleanLiteral(false));
+                ExpressionStatement resetStmt = ast.newExpressionStatement(reset);
+                thenBlock.statements().add(resetStmt);
+                thenBlock.statements().add(ast.newBreakStatement());
+                ifStmt.setThenStatement(thenBlock);
+
                 b.statements().add(ifStmt);
             }
             if (needsContinueCheck.contains(m) && variant2Callsite.get(m).isInsideLoop) {
@@ -149,7 +159,17 @@ public class RewriteFinalizer extends ASTVisitor {
                 fa.setExpression(ast.newThisExpression());
                 fa.setName(ast.newSimpleName(collector.hasContinueFieldName));
                 ifStmt.setExpression(fa);
-                ifStmt.setThenStatement(ast.newContinueStatement());
+
+                Block thenBlock = ast.newBlock();
+                // reset the break field after use
+                Assignment reset = ast.newAssignment();
+                reset.setLeftHandSide((Expression) ASTNode.copySubtree(ast, fa));
+                reset.setRightHandSide(ast.newBooleanLiteral(false));
+                ExpressionStatement resetStmt = ast.newExpressionStatement(reset);
+                thenBlock.statements().add(resetStmt);
+                thenBlock.statements().add(ast.newContinueStatement());
+                ifStmt.setThenStatement(thenBlock);
+
                 b.statements().add(ifStmt);
             }
             if (needsReturnCheck.contains(m)) {
@@ -207,8 +227,8 @@ public class RewriteFinalizer extends ASTVisitor {
         if (!firstModifiedInVariant.containsKey(locationNode)) {
             firstModifiedInVariant.put(locationNode, variantMethod);
         }
-        CheckBreakContinueReturnVisitor locationNodeCheck = new CheckBreakContinueReturnVisitor();
-        CheckBreakContinueReturnVisitor fixCodeNodeCheck = new CheckBreakContinueReturnVisitor();
+        CheckBreakContinueReturnVisitor locationNodeCheck = new CheckBreakContinueReturnVisitor(locationNode);
+        CheckBreakContinueReturnVisitor fixCodeNodeCheck = new CheckBreakContinueReturnVisitor(fixCodeNode);
         locationNode.accept(locationNodeCheck);
         if (fixCodeNode != null)
             fixCodeNode.accept(fixCodeNodeCheck);
@@ -225,11 +245,11 @@ public class RewriteFinalizer extends ASTVisitor {
             needsReturnCheckAndFirst.add(chain.get(0));
         }
         else if (locationNodeCheck.hasBreak || fixCodeNodeCheck.hasBreak) {
-            MethodDeclaration closestBreakPoint = findCloeseCheckPoint(locationNode);
+            MethodDeclaration closestBreakPoint = findCloeseCheckPoint(locationNode, true);
             needsBreakCheck.add(closestBreakPoint);
         }
         else if (locationNodeCheck.hasContinue || fixCodeNodeCheck.hasContinue) {
-            MethodDeclaration closestContinuePoint = findCloeseCheckPoint(locationNode);
+            MethodDeclaration closestContinuePoint = findCloeseCheckPoint(locationNode, false);
             needsContinueCheck.add(closestContinuePoint);
         }
     }
@@ -248,10 +268,13 @@ public class RewriteFinalizer extends ASTVisitor {
      *
      * @param locationNode the break in the above example, or any statement can be validly replaced by a break;
      */
-    private MethodDeclaration findCloeseCheckPoint(ASTNode locationNode) {
+    private MethodDeclaration findCloeseCheckPoint(ASTNode locationNode, boolean shouldConsiderSwitchStmt) {
         MethodDeclaration res = firstModifiedInVariant.get(locationNode);
         ASTNode current = locationNode.getParent();
         while (current != null && !isLoop(current)) {
+            if (shouldConsiderSwitchStmt && isSwitch(current)) {
+                break;
+            }
             if (firstModifiedInVariant.containsKey(current))
                 res = firstModifiedInVariant.get(current);
             current = current.getParent();
@@ -259,11 +282,12 @@ public class RewriteFinalizer extends ASTVisitor {
         return res;
     }
 
-    private boolean isLoop(ASTNode n) {
-        if (n instanceof WhileStatement || n instanceof ForStatement || n instanceof EnhancedForStatement || n instanceof DoStatement)
-            return true;
-        else
-            return false;
+    public static boolean isLoop(ASTNode n) {
+        return n instanceof WhileStatement || n instanceof ForStatement || n instanceof EnhancedForStatement || n instanceof DoStatement;
+    }
+
+    public static boolean isSwitch(ASTNode n) {
+        return n instanceof SwitchStatement;
     }
 
     /**
@@ -764,16 +788,25 @@ class CheckBreakContinueReturnVisitor extends ASTVisitor {
     boolean hasBreak = false;
     boolean hasContinue = false;
 
+    ASTNode root;
+
+    CheckBreakContinueReturnVisitor(ASTNode root) {
+        this.root = root;
+    }
+
     @Override
     public boolean visit(BreakStatement node) {
-        if (!isPartOfSwitchStatement(node))
+        if (canEscapeRoot(node)) {
             hasBreak = true;
+        }
         return true;
     }
 
     @Override
     public boolean visit(ContinueStatement node) {
-        hasContinue = true;
+        if (canEscapeRoot(node)) {
+            hasContinue = true;
+        }
         return true;
     }
 
@@ -781,6 +814,38 @@ class CheckBreakContinueReturnVisitor extends ASTVisitor {
     public boolean visit(ReturnStatement node) {
         hasReturn = true;
         return true;
+    }
+
+    private boolean canEscapeRoot(BreakStatement b) {
+        ASTNode current = b;
+        while (current != root) {
+            if (RewriteFinalizer.isLoop(current) || RewriteFinalizer.isSwitch(current)) {
+                return false;
+            }
+            current = current.getParent();
+        }
+        if (RewriteFinalizer.isLoop(current) || RewriteFinalizer.isSwitch(current)) {
+            return false;
+        }
+        else {
+            return true;
+        }
+    }
+
+    private boolean canEscapeRoot(ContinueStatement c) {
+        ASTNode current = c;
+        while (current != root) {
+            if (RewriteFinalizer.isLoop(current)) {
+                return false;
+            }
+            current = current.getParent();
+        }
+        if (RewriteFinalizer.isLoop(current)) {
+            return false;
+        }
+        else {
+            return true;
+        }
     }
 
     private boolean isPartOfSwitchStatement(ASTNode n) {
