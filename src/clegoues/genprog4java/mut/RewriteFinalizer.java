@@ -627,6 +627,9 @@ class FieldInitVisitor extends ASTVisitor {
             else if (node.getLocationInParent() == MethodDeclaration.PARAMETERS_PROPERTY) {
                 return false;
             }
+            else if (node.getLocationInParent() == CatchClause.EXCEPTION_PROPERTY) {
+                return false;
+            }
             else {
                 throw new RuntimeException("Unexpected SingleVariableDeclaration in " + node.getParent().getClass());
             }
