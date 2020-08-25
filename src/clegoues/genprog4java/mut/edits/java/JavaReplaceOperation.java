@@ -70,6 +70,9 @@ public class JavaReplaceOperation extends JavaEditOperation {
 		MethodDeclaration vm = ast.newMethodDeclaration();
 		vm.setReturnType2(ast.newPrimitiveType(PrimitiveType.VOID));
 		vm.setName(ast.newSimpleName(getVariantFolder()));
+		if (mutatedMethod.modifiers().contains(Modifier.ModifierKeyword.STATIC_KEYWORD)) {
+			vm.modifiers().add(ast.newModifier(Modifier.ModifierKeyword.STATIC_KEYWORD));
+		}
 		for (Type t : (List<Type>) mutatedMethod.thrownExceptionTypes()) {
 			vm.thrownExceptionTypes().add(ASTNode.copySubtree(ast, t));
 		}
@@ -86,7 +89,7 @@ public class JavaReplaceOperation extends JavaEditOperation {
 		body.statements().add(ife);
 
 		MethodInvocation mi = ast.newMethodInvocation();
-		mi.setExpression(ast.newThisExpression());
+//		mi.setExpression(ast.newThisExpression());
 		mi.setName(ast.newSimpleName(getVariantFolder()));
 		ExpressionStatement mis = ast.newExpressionStatement(mi);
 

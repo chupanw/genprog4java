@@ -98,9 +98,9 @@ public class RewriteFinalizer extends ASTVisitor {
         for (MethodDeclaration m : method2Variants.get(mutatedMethod)) {
             ListRewrite lsr = rewriter.getListRewrite(m.getBody(), Block.STATEMENTS_PROPERTY);
             if (needsBreakCheck.contains(m)) {
-                FieldAccess fa = ast.newFieldAccess();
-                fa.setExpression(ast.newThisExpression());
-                fa.setName(ast.newSimpleName(collector.hasBreakFieldName));
+//                FieldAccess fa = ast.newFieldAccess();
+//                fa.setExpression(ast.newThisExpression());
+                SimpleName fa = ast.newSimpleName(collector.hasBreakFieldName);
                 Assignment assign = ast.newAssignment();
                 assign.setLeftHandSide(fa);
                 assign.setRightHandSide(ast.newBooleanLiteral(false));
@@ -108,9 +108,9 @@ public class RewriteFinalizer extends ASTVisitor {
                 lsr.insertFirst(assignStmt, null);
             }
             if (needsContinueCheck.contains(m)) {
-                FieldAccess fa = ast.newFieldAccess();
-                fa.setExpression(ast.newThisExpression());
-                fa.setName(ast.newSimpleName(collector.hasContinueFieldName));
+//                FieldAccess fa = ast.newFieldAccess();
+//                fa.setExpression(ast.newThisExpression());
+                SimpleName fa = ast.newSimpleName(collector.hasContinueFieldName);
                 Assignment assign = ast.newAssignment();
                 assign.setLeftHandSide(fa);
                 assign.setRightHandSide(ast.newBooleanLiteral(false));
@@ -118,9 +118,9 @@ public class RewriteFinalizer extends ASTVisitor {
                 lsr.insertFirst(assignStmt, null);
             }
             if (needsReturnCheck.contains(m)) {
-                FieldAccess fa = ast.newFieldAccess();
-                fa.setExpression(ast.newThisExpression());
-                fa.setName(ast.newSimpleName(collector.hasReturnFieldName));
+//                FieldAccess fa = ast.newFieldAccess();
+//                fa.setExpression(ast.newThisExpression());
+                SimpleName fa = ast.newSimpleName(collector.hasReturnFieldName);
                 Assignment assign = ast.newAssignment();
                 assign.setLeftHandSide(fa);
                 assign.setRightHandSide(ast.newBooleanLiteral(false));
@@ -135,9 +135,9 @@ public class RewriteFinalizer extends ASTVisitor {
             if (needsBreakCheck.contains(m) && variant2Callsite.get(m).isInsideLoop) {
                 Block b = variant2Callsite.get(m).block;
                 IfStatement ifStmt = ast.newIfStatement();
-                FieldAccess fa = ast.newFieldAccess();
-                fa.setExpression(ast.newThisExpression());
-                fa.setName(ast.newSimpleName(collector.hasBreakFieldName));
+//                FieldAccess fa = ast.newFieldAccess();
+//                fa.setExpression(ast.newThisExpression());
+                SimpleName fa = ast.newSimpleName(collector.hasBreakFieldName);
                 ifStmt.setExpression(fa);
 
                 Block thenBlock = ast.newBlock();
@@ -155,9 +155,9 @@ public class RewriteFinalizer extends ASTVisitor {
             if (needsContinueCheck.contains(m) && variant2Callsite.get(m).isInsideLoop) {
                 Block b = variant2Callsite.get(m).block;
                 IfStatement ifStmt = ast.newIfStatement();
-                FieldAccess fa = ast.newFieldAccess();
-                fa.setExpression(ast.newThisExpression());
-                fa.setName(ast.newSimpleName(collector.hasContinueFieldName));
+//                FieldAccess fa = ast.newFieldAccess();
+//                fa.setExpression(ast.newThisExpression());
+                SimpleName fa = ast.newSimpleName(collector.hasContinueFieldName);
                 ifStmt.setExpression(fa);
 
                 Block thenBlock = ast.newBlock();
@@ -175,15 +175,15 @@ public class RewriteFinalizer extends ASTVisitor {
             if (needsReturnCheck.contains(m)) {
                 Block b = variant2Callsite.get(m).block;
                 IfStatement ifStmt = ast.newIfStatement();
-                FieldAccess fa = ast.newFieldAccess();
-                fa.setExpression(ast.newThisExpression());
-                fa.setName(ast.newSimpleName(collector.hasReturnFieldName));
+//                FieldAccess fa = ast.newFieldAccess();
+//                fa.setExpression(ast.newThisExpression());
+                SimpleName fa = ast.newSimpleName(collector.hasReturnFieldName);
                 ifStmt.setExpression(fa);
                 ReturnStatement retStmt = ast.newReturnStatement();
                 if (needsReturnCheckAndFirst.contains(m) && hasReturnValue(mutatedMethod)) {
-                    FieldAccess retValFA = ast.newFieldAccess();
-                    retValFA.setExpression(ast.newThisExpression());
-                    retValFA.setName(ast.newSimpleName(collector.returnValueFieldName));
+//                    FieldAccess retValFA = ast.newFieldAccess();
+//                    retValFA.setExpression(ast.newThisExpression());
+                    SimpleName retValFA = ast.newSimpleName(collector.returnValueFieldName);
                     retStmt.setExpression(retValFA);
                 }
                 ifStmt.setThenStatement(retStmt);
@@ -594,9 +594,9 @@ class FieldInitVisitor extends ASTVisitor {
         ListRewrite lsr = rewriter.getListRewrite(collector.md.getBody(), Block.STATEMENTS_PROPERTY);
         for (MyParameter p : collector.parameters) {
             Assignment assign = ast.newAssignment();
-            FieldAccess fa = ast.newFieldAccess();
-            fa.setExpression(ast.newThisExpression());
-            fa.setName(ast.newSimpleName(collector.varNames.get(p.getName().getIdentifier())));
+//            FieldAccess fa = ast.newFieldAccess();
+//            fa.setExpression(ast.newThisExpression());
+            SimpleName fa = ast.newSimpleName(collector.varNames.get(p.getName().getIdentifier()));
             assign.setLeftHandSide(fa);
             assign.setRightHandSide(p.getName());
             ExpressionStatement assignStmt = ast.newExpressionStatement(assign);
@@ -616,9 +616,9 @@ class FieldInitVisitor extends ASTVisitor {
             if (node.getLocationInParent() == EnhancedForStatement.PARAMETER_PROPERTY) {
                 EnhancedForStatement parent = (EnhancedForStatement) node.getParent();
                 Assignment assign = ast.newAssignment();
-                FieldAccess fa = ast.newFieldAccess();
-                fa.setExpression(ast.newThisExpression());
-                fa.setName(ast.newSimpleName(collector.varNames.get(name)));
+//                FieldAccess fa = ast.newFieldAccess();
+//                fa.setExpression(ast.newThisExpression());
+                SimpleName fa = ast.newSimpleName(collector.varNames.get(name));
                 assign.setLeftHandSide(fa);
                 assign.setRightHandSide(ast.newSimpleName(name));
                 ExpressionStatement assignStmt = ast.newExpressionStatement(assign);
@@ -645,9 +645,9 @@ class FieldInitVisitor extends ASTVisitor {
             Expression initializer = (Expression) ASTNode.copySubtree(ast, f.getInitializer());
             if (initializer != null && collector.varNames.containsKey(f.getName().getIdentifier())) {
                 Assignment assign = ast.newAssignment();
-                FieldAccess fa = ast.newFieldAccess();
-                fa.setExpression(ast.newThisExpression());
-                fa.setName(ast.newSimpleName(collector.varNames.get(f.getName().getIdentifier())));
+//                FieldAccess fa = ast.newFieldAccess();
+//                fa.setExpression(ast.newThisExpression());
+                SimpleName fa = ast.newSimpleName(collector.varNames.get(f.getName().getIdentifier()));
                 assign.setLeftHandSide(fa);
                 assign.setRightHandSide(initializer);
                 ExpressionStatement assignStmt = ast.newExpressionStatement(assign);
@@ -674,9 +674,9 @@ class FieldInitVisitor extends ASTVisitor {
                 Expression initializer = (Expression) ASTNode.copySubtree(ast, f.getInitializer());
                 if (initializer != null && collector.varNames.containsKey(f.getName().getIdentifier())) {
                     Assignment assign = ast.newAssignment();
-                    FieldAccess fa = ast.newFieldAccess();
-                    fa.setExpression(ast.newThisExpression());
-                    fa.setName(ast.newSimpleName(collector.varNames.get(f.getName().getIdentifier())));
+//                    FieldAccess fa = ast.newFieldAccess();
+//                    fa.setExpression(ast.newThisExpression());
+                    SimpleName fa = ast.newSimpleName(collector.varNames.get(f.getName().getIdentifier()));
                     assign.setLeftHandSide(fa);
                     assign.setRightHandSide(initializer);
                     assign.accept(var2field);
@@ -714,9 +714,9 @@ class VariantBreakContinueReturnVisitor extends ASTVisitor {
         if (!isPartOfSwitchStatement(node)) {
             Block b = ast.newBlock();
             Assignment assign = ast.newAssignment();
-            FieldAccess fa = ast.newFieldAccess();
-            fa.setExpression(ast.newThisExpression());
-            fa.setName(ast.newSimpleName(collector.hasBreakFieldName));
+//            FieldAccess fa = ast.newFieldAccess();
+//            fa.setExpression(ast.newThisExpression());
+            SimpleName fa = ast.newSimpleName(collector.hasBreakFieldName);
             assign.setLeftHandSide(fa);
             assign.setRightHandSide(ast.newBooleanLiteral(true));
             ExpressionStatement assignStmt = ast.newExpressionStatement(assign);
@@ -732,9 +732,9 @@ class VariantBreakContinueReturnVisitor extends ASTVisitor {
     public boolean visit(ContinueStatement node) {
         Block b = ast.newBlock();
         Assignment assign = ast.newAssignment();
-        FieldAccess fa = ast.newFieldAccess();
-        fa.setExpression(ast.newThisExpression());
-        fa.setName(ast.newSimpleName(collector.hasContinueFieldName));
+//        FieldAccess fa = ast.newFieldAccess();
+//        fa.setExpression(ast.newThisExpression());
+        SimpleName fa = ast.newSimpleName(collector.hasContinueFieldName);
         assign.setLeftHandSide(fa);
         assign.setRightHandSide(ast.newBooleanLiteral(true));
         ExpressionStatement assignStmt = ast.newExpressionStatement(assign);
@@ -749,18 +749,18 @@ class VariantBreakContinueReturnVisitor extends ASTVisitor {
     public boolean visit(ReturnStatement node) {
         Block b = ast.newBlock();
         Assignment assign = ast.newAssignment();
-        FieldAccess fa = ast.newFieldAccess();
-        fa.setExpression(ast.newThisExpression());
-        fa.setName(ast.newSimpleName(collector.hasReturnFieldName));
+//        FieldAccess fa = ast.newFieldAccess();
+//        fa.setExpression(ast.newThisExpression());
+        SimpleName fa = ast.newSimpleName(collector.hasReturnFieldName);
         assign.setLeftHandSide(fa);
         assign.setRightHandSide(ast.newBooleanLiteral(true));
         ExpressionStatement assignStmt = ast.newExpressionStatement(assign);
         b.statements().add(assignStmt);
         if (node.getExpression() != null) {
             Assignment retValAssign = ast.newAssignment();
-            FieldAccess retValFA = ast.newFieldAccess();
-            retValFA.setExpression(ast.newThisExpression());
-            retValFA.setName(ast.newSimpleName(collector.returnValueFieldName));
+//            FieldAccess retValFA = ast.newFieldAccess();
+//            retValFA.setExpression(ast.newThisExpression());
+            SimpleName retValFA = ast.newSimpleName(collector.returnValueFieldName);
             retValAssign.setLeftHandSide(retValFA);
             Expression retVal = (Expression) ASTNode.copySubtree(ast, node.getExpression());
             retValAssign.setRightHandSide(retVal);

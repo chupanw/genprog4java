@@ -116,6 +116,10 @@ public class ABS extends JavaEditOperation {
         method.setBody(body);
         method.setName(ast.newSimpleName(methodName));
         method.setReturnType2(ast.newSimpleType(ast.newName(this.type)));
+        MethodDeclaration mutatedMethod = getMethodDeclaration(locationExpr);
+        if (mutatedMethod.modifiers().contains(Modifier.ModifierKeyword.STATIC_KEYWORD)) {
+            method.modifiers().add(Modifier.ModifierKeyword.STATIC_KEYWORD);
+        }
         if (addParameter) {
             SingleVariableDeclaration p1 = ast.newSingleVariableDeclaration();
             p1.setType(ast.newSimpleType(ast.newName(this.type)));
