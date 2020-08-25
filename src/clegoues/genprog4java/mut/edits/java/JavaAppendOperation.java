@@ -98,7 +98,7 @@ public class JavaAppendOperation extends JavaEditOperation {
 			MethodDeclaration vm = ast.newMethodDeclaration();
 			Block body = ast.newBlock();
 			vm.setName(ast.newSimpleName(this.getVariantFolder()));
-			if (mutatedMethod.modifiers().contains(Modifier.ModifierKeyword.STATIC_KEYWORD)) {
+			if ((mutatedMethod.getModifiers() & Modifier.STATIC) != 0) {
 				vm.modifiers().add(ast.newModifier(Modifier.ModifierKeyword.STATIC_KEYWORD));
 			}
 			vm.setReturnType2(ast.newPrimitiveType(PrimitiveType.VOID));

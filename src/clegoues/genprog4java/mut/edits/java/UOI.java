@@ -135,8 +135,8 @@ public class UOI extends JavaEditOperation {
         method.setName(ast.newSimpleName(methodName));
         method.setReturnType2(ast.newSimpleType(ast.newName(this.type)));
         MethodDeclaration mutatedMethod = getMethodDeclaration(locationExpr);
-        if (mutatedMethod.modifiers().contains(Modifier.ModifierKeyword.STATIC_KEYWORD)) {
-            method.modifiers().add(Modifier.ModifierKeyword.STATIC_KEYWORD);
+        if ((mutatedMethod.getModifiers() & Modifier.STATIC) != 0) {
+            method.modifiers().add(ast.newModifier(Modifier.ModifierKeyword.STATIC_KEYWORD));
         }
         if (addParameters) {
             // GenProg mode, use parameter to find the correct type
