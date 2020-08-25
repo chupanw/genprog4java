@@ -34,7 +34,7 @@ def compile():
     p = subprocess.run(['ant', 'compile.tests'], cwd=pwd)
     # Sanity check and merge check need these new class files in the -classpath argument
     if p.returncode == 0:
-        copy_compiled_classes(pwd, target)
+        copy_compiled_classes(pwd, target, java_files)
     recover_source_files(pwd, tempdir, java_files)
     cleanupVarexCFiles(pwd)
     shutil.rmtree(tempdir)
@@ -66,7 +66,7 @@ def recover_source_files(pwd, tempdir, java_files):
             shutil.copy(abs_backup, abs_origin_fp)
 
 
-def copy_compiled_classes(pwd, target): 
+def copy_compiled_classes(pwd, target, java_files):
     for f in java_files:
        qualified_class_file = f[:-5] + ".class"
        abs_cls = os.path.join(pwd, 'target/classes', qualified_class_file)
