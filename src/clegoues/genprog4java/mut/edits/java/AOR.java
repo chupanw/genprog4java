@@ -70,6 +70,10 @@ public class AOR extends JavaEditOperation {
         Block body = ast.newBlock();
         method.setBody(body);
         method.setName(ast.newSimpleName(methodName));
+        MethodDeclaration mutatedMethod = getMethodDeclaration(locationExpr);
+        if (mutatedMethod.modifiers().contains(Modifier.ModifierKeyword.STATIC_KEYWORD)) {
+            method.modifiers().add(Modifier.ModifierKeyword.STATIC_KEYWORD);
+        }
         method.setReturnType2(ast.newSimpleType(ast.newName(this.type)));
         // meta-program generation relies on this to find the right type
         if (addParameters) {

@@ -57,6 +57,10 @@ public class ROR extends JavaEditOperation {
         MethodDeclaration vm = ast.newMethodDeclaration();
         Block body = ast.newBlock();
         vm.setBody(body);
+        MethodDeclaration mutatedMethod = getMethodDeclaration(locationExpr);
+        if (mutatedMethod.modifiers().contains(Modifier.ModifierKeyword.STATIC_KEYWORD)) {
+            vm.modifiers().add(Modifier.ModifierKeyword.STATIC_KEYWORD);
+        }
         vm.setName(ast.newSimpleName(this.getVariantFolder()));
         vm.setReturnType2(ast.newPrimitiveType((PrimitiveType.BOOLEAN)));
 
@@ -66,7 +70,7 @@ public class ROR extends JavaEditOperation {
         body.statements().add(ret);
 
         MethodInvocation mi = ast.newMethodInvocation();
-        mi.setExpression(ast.newThisExpression());
+//        mi.setExpression(ast.newThisExpression());
         mi.setName(ast.newSimpleName(getVariantFolder()));
 
         applyEditAndUpdateNodeStore(rewriter, mi, nodeStore, locationExpr, locationExprCopy);
