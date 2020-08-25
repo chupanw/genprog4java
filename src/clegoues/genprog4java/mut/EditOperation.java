@@ -68,6 +68,15 @@ public interface EditOperation<R> {
 		return fa;
 	}
 
+	default Expression getNextFieldAccess(AST ast, String suffix) {
+		// condition
+		VarexCGlobal.addVariantName(this.getVariantFolder() + "_" + suffix);
+		FieldAccess fa = ast.newFieldAccess();
+		fa.setExpression(ast.newQualifiedName(ast.newSimpleName("varexc"), ast.newSimpleName("GlobalOptions")));
+		fa.setName(ast.newSimpleName(this.getVariantFolder() + "_" + suffix));
+		return fa;
+	}
+
 	default Expression getNextFieldAccessNot(ASTNode parent) {
 		// condition
 		VarexCGlobal.addVariantName(this.getVariantFolder());

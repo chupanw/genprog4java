@@ -33,55 +33,11 @@
 
 package clegoues.genprog4java.java;
 
+import clegoues.genprog4java.rep.JavaRepresentation;
+import org.eclipse.jdt.core.dom.*;
+
 import java.lang.reflect.Modifier;
 import java.util.*;
-
-import org.eclipse.jdt.core.dom.ASTMatcher;
-import org.eclipse.jdt.core.dom.ASTNode;
-import org.eclipse.jdt.core.dom.ASTVisitor;
-import org.eclipse.jdt.core.dom.ArrayAccess;
-import org.eclipse.jdt.core.dom.ArrayType;
-import org.eclipse.jdt.core.dom.Block;
-import org.eclipse.jdt.core.dom.CastExpression;
-import org.eclipse.jdt.core.dom.ClassInstanceCreation;
-import org.eclipse.jdt.core.dom.ConditionalExpression;
-import org.eclipse.jdt.core.dom.DoStatement;
-import org.eclipse.jdt.core.dom.EnhancedForStatement;
-import org.eclipse.jdt.core.dom.Expression;
-import org.eclipse.jdt.core.dom.FieldAccess;
-import org.eclipse.jdt.core.dom.ForStatement;
-import org.eclipse.jdt.core.dom.IBinding;
-import org.eclipse.jdt.core.dom.IMethodBinding;
-import org.eclipse.jdt.core.dom.ITypeBinding;
-import org.eclipse.jdt.core.dom.IVariableBinding;
-import org.eclipse.jdt.core.dom.IfStatement;
-import org.eclipse.jdt.core.dom.InfixExpression;
-import org.eclipse.jdt.core.dom.MethodDeclaration;
-import org.eclipse.jdt.core.dom.MethodInvocation;
-import org.eclipse.jdt.core.dom.NullLiteral;
-import org.eclipse.jdt.core.dom.NumberLiteral;
-import org.eclipse.jdt.core.dom.ParameterizedType;
-import org.eclipse.jdt.core.dom.ParenthesizedExpression;
-import org.eclipse.jdt.core.dom.PrimitiveType;
-import org.eclipse.jdt.core.dom.QualifiedName;
-import org.eclipse.jdt.core.dom.QualifiedType;
-import org.eclipse.jdt.core.dom.ReturnStatement;
-import org.eclipse.jdt.core.dom.SimpleName;
-import org.eclipse.jdt.core.dom.SimpleType;
-import org.eclipse.jdt.core.dom.Statement;
-import org.eclipse.jdt.core.dom.SuperFieldAccess;
-import org.eclipse.jdt.core.dom.SuperMethodInvocation;
-import org.eclipse.jdt.core.dom.SwitchStatement;
-import org.eclipse.jdt.core.dom.ThisExpression;
-import org.eclipse.jdt.core.dom.Type;
-import org.eclipse.jdt.core.dom.TypeDeclaration;
-import org.eclipse.jdt.core.dom.UnionType;
-import org.eclipse.jdt.core.dom.VariableDeclarationFragment;
-import org.eclipse.jdt.core.dom.VariableDeclarationStatement;
-import org.eclipse.jdt.core.dom.WhileStatement;
-import org.eclipse.jdt.core.dom.WildcardType;
-
-import clegoues.genprog4java.rep.JavaRepresentation;
 
 public class JavaStatement implements Comparable<JavaStatement>{
 
@@ -386,6 +342,35 @@ public class JavaStatement implements Comparable<JavaStatement>{
 			this.getASTNode().accept(new CollectRelationalExpression(relationalExpressions));
 			return relationalExpressions;
 		}
+	}
+
+	private Set<Expression> arithmeticExpressions = null;
+	public Set<Expression> getArithmeticExpressions() {
+		if (arithmeticExpressions != null) {
+			return arithmeticExpressions;
+		} else {
+			arithmeticExpressions = new HashSet<>();
+			this.getASTNode().accept(new CollectArithmeticExpression(arithmeticExpressions));
+			return arithmeticExpressions;
+		}
+	}
+
+	private Set<Expression> logicalConnectorExpressions = null;
+	public Set<Expression> getLogicalConnectorExpressions() {
+		if (logicalConnectorExpressions == null) {
+			logicalConnectorExpressions = new HashSet<>();
+			this.getASTNode().accept(new CollectLogicalConnectorExpression(logicalConnectorExpressions));
+		}
+		return logicalConnectorExpressions;
+	}
+
+	private Set<Expression> absExpressions = null;
+	public Set<Expression> getAbsExpressions() {
+		if (absExpressions == null) {
+			absExpressions = new HashSet<>();
+			this.getASTNode().accept(new CollectABSExpression(absExpressions));
+		}
+		return absExpressions;
 	}
 
 	private Map<Expression,List<Expression>> methodParamReplacements = null;

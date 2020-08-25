@@ -9,8 +9,7 @@ import clegoues.genprog4java.main.Configuration;
 import clegoues.genprog4java.mut.EditHole;
 import clegoues.genprog4java.mut.EditOperation;
 import clegoues.genprog4java.mut.RewriteFinalizer;
-import clegoues.genprog4java.mut.edits.java.JavaEditOperation;
-import clegoues.genprog4java.mut.edits.java.JavaEditPool;
+import clegoues.genprog4java.mut.edits.java.*;
 import clegoues.genprog4java.mut.holes.java.JavaLocation;
 import clegoues.genprog4java.mut.holes.java.StatementHole;
 import clegoues.genprog4java.mut.varexc.VarexCGlobal;
@@ -60,9 +59,12 @@ public class MergedRepresentation extends JavaRepresentation {
     @Override
     protected ArrayList<Pair<ClassInfo, String>> internalComputeSourceBuffers() {
         sortGenome();
+        putExpMutationToEnd();
         collectEdits();
         excludeEdits();
+        HashSet<EditOperation> toRemove = excludeRepetitive();
         serializeEdits();
+        compilableEdits.removeAll(toRemove);    // the actual removal should come after serialization so that single edits can be preserved
         ArrayList<Pair<ClassInfo, String>> retVal = new ArrayList<Pair<ClassInfo, String>>();
         for (Map.Entry<ClassInfo, String> pair : sourceInfo.getOriginalSource().entrySet()) {
             ClassInfo ci = pair.getKey();
@@ -151,9 +153,9 @@ public class MergedRepresentation extends JavaRepresentation {
                 if (isAssignment2Final((Expression) code))
                     exclude(toRemove, e);
             }
-            else if (code instanceof BreakStatement || code instanceof ContinueStatement) {
-                exclude(toRemove, e);
-            }
+//            else if (code instanceof BreakStatement || code instanceof ContinueStatement) {
+//                exclude(toRemove, e);
+//            }
             else if (code instanceof Block) {
                 exclude(toRemove, e);
             }
@@ -163,8 +165,63 @@ public class MergedRepresentation extends JavaRepresentation {
                     exclude(toRemove, e);
                 }
             }
+            // exclude edits that append/replace loops or potential recursive calls
+            // update: we might not need this anymore because we have a smarter block count reset
+            // that checks the empty config
+//            StatementTypeVisitor stmtVisitor = new StatementTypeVisitor();
+//            if (fixHole != null && fixHole.getCode() != null) {
+//                ASTNode fixCode = (ASTNode) fixHole.getCode();
+//                stmtVisitor.markLocalMethods(fixCode);
+//                fixCode.accept(stmtVisitor);
+//            }
+//            if (stmtVisitor.hasLoop || stmtVisitor.hasLocalMethodCall) {
+//                exclude(toRemove, e);
+//            }
         }
         compilableEdits.removeAll(toRemove);
+    }
+
+    private HashSet<EditOperation> excludeRepetitive() {
+        HashSet<EditOperation> toRemove = new HashSet<>();
+        // the value is the variant folder name that will be kept in the meta program
+        HashMap<Expression, String> uniqueAORLocation = new HashMap<>();
+        HashMap<Expression, String> uniqueUOILocation = new HashMap<>();
+        HashMap<Expression, String> uniqueRORLocation = new HashMap<>();
+        // no need for LCR and ABS as they have only one variant
+        for (EditOperation e : compilableEdits) {
+            if (e instanceof AOR) {
+                if (uniqueAORLocation.containsKey(((AOR) e).locationExpr)) {
+                    excludeAndResetVariantOption(toRemove, e, uniqueAORLocation.get(((AOR) e).locationExpr));
+                }
+                else {
+                    uniqueAORLocation.put(((AOR) e).locationExpr, e.getVariantFolder());
+                }
+            }
+            if (e instanceof UOI) {
+                if (uniqueUOILocation.containsKey(((UOI) e).locationExpr)) {
+                    excludeAndResetVariantOption(toRemove, e, uniqueUOILocation.get(((UOI) e).locationExpr));
+                }
+                else {
+                    uniqueUOILocation.put(((UOI) e).locationExpr, e.getVariantFolder());
+                }
+            }
+            if (e instanceof ROR) {
+                if (uniqueRORLocation.containsKey(((ROR) e).locationExpr)) {
+                    excludeAndResetVariantOption(toRemove, e, uniqueRORLocation.get(((ROR) e).locationExpr));
+                }
+                else {
+                    uniqueRORLocation.put(((ROR) e).locationExpr, e.getVariantFolder());
+                }
+            }
+        }
+        return toRemove;
+    }
+
+    private void excludeAndResetVariantOption(Set<EditOperation> set, EditOperation e, String finalVariantFolder) {
+        String optionName = finalVariantFolder + "_" + ((JavaEditOperation) e).getVariantOptionSuffix();
+        ((JavaEditOperation) e).setVariantOption(optionName);
+        logger.info("Resetting variant option of " + e.toString() + " to " + optionName + ", will be excluded after serialization");
+        set.add(e);
     }
 
     private void exclude(Set<EditOperation> set, EditOperation e) {
@@ -282,5 +339,77 @@ public class MergedRepresentation extends JavaRepresentation {
 
     private void sortGenome() {
         this.getGenome().sort(Comparator.comparingInt(o -> o.getLocation().getId()));
+    }
+
+    private void putExpMutationToEnd() {
+        ArrayList<JavaEditOperation> expMutations = new ArrayList<>();
+        for (JavaEditOperation edit : this.getGenome()) {
+            if (edit.isExpMutation()) {
+                expMutations.add(edit);
+            }
+        }
+        this.getGenome().removeAll(expMutations);
+        this.getGenome().addAll(expMutations);
+    }
+}
+
+class StatementTypeVisitor extends ASTVisitor {
+    boolean hasLoop = false;
+    boolean hasLocalMethodCall = false;
+
+    HashSet<String> localMethodNames = new HashSet<>();
+
+    public void markLocalMethods(ASTNode startingFrom) {
+        TypeDeclaration cls = getTypeDeclaration(startingFrom);
+        MethodDeclaration[] allMethods = cls.getMethods();
+        for (MethodDeclaration m : allMethods) {
+            localMethodNames.add(m.getName().getIdentifier());
+        }
+    }
+
+    private TypeDeclaration getTypeDeclaration(ASTNode n) {
+        if (n != null) {
+            if (n instanceof TypeDeclaration) {
+                return (TypeDeclaration) n;
+            }
+            else {
+                return getTypeDeclaration(n.getParent());
+            }
+        }
+        else {
+            throw new RuntimeException("No surrounding type declaration");
+        }
+    }
+
+    @Override
+    public boolean visit(MethodInvocation node) {
+        if (localMethodNames.contains(node.getName().getIdentifier())) {
+            hasLocalMethodCall = true;
+        }
+        return super.visit(node);
+    }
+
+    @Override
+    public boolean visit(EnhancedForStatement node) {
+        hasLoop = true;
+        return super.visit(node);
+    }
+
+    @Override
+    public boolean visit(ForStatement node) {
+        hasLoop = true;
+        return super.visit(node);
+    }
+
+    @Override
+    public boolean visit(WhileStatement node) {
+        hasLoop = true;
+        return super.visit(node);
+    }
+
+    @Override
+    public boolean visit(DoStatement node) {
+        hasLoop = true;
+        return super.visit(node);
     }
 }

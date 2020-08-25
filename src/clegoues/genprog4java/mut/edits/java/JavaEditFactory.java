@@ -64,49 +64,59 @@ public class JavaEditFactory {
 
 	public JavaEditOperation makeEdit(Mutation edit, Location dst, EditHole sources) {
 		switch(edit) {
-		case DELETE:
-			return new JavaDeleteOperation((JavaLocation) dst);
-		case OFFBYONE:
-			return new OffByOneOperation((JavaLocation) dst, sources);
-		case APPEND: return new JavaAppendOperation((JavaLocation) dst, sources);
-		case REPLACE: return new JavaReplaceOperation((JavaLocation) dst, sources);
-		case SWAP: return new JavaSwapOperation((JavaLocation) dst, sources);
-		case PARREP:
-			return new MethodParameterReplacer((JavaLocation) dst, sources);
-		case FUNREP:
-			return new MethodReplacer((JavaLocation) dst, sources);	
-		case LBOUNDSET:
-			return new LowerBoundSetOperation((JavaLocation) dst, sources);
-		case UBOUNDSET:
-			return new UpperBoundSetOperation((JavaLocation) dst, sources);
-		case RANGECHECK:
-			return new RangeCheckOperation((JavaLocation) dst, sources);
-		case NULLCHECK:
-			return new NullCheckOperation((JavaLocation) dst, sources);
-		case CASTCHECK:
-			return new ClassCastChecker((JavaLocation) dst, sources);
-		case EXPREP:
-			return new ExpressionModRep((JavaLocation) dst, sources);
-		case PARADD:
-			return new MethodParameterAdder((JavaLocation) dst, sources);
-		case EXPADD: 
-			return new ExpressionModAdd((JavaLocation) dst, sources);
-		case EXPREM: 
-			return new ExpressionModRem((JavaLocation) dst, sources);
-		case PARREM:
-			return new MethodParameterRemover((JavaLocation) dst, sources);
-		case SIZECHECK:
-			return new CollectionSizeChecker((JavaLocation) dst, sources);
-		case OBJINIT:
-			return new ObjectInitializer((JavaLocation) dst, sources);
-		case SEQEXCH:
-			return new SequenceExchanger((JavaLocation) dst, sources);
-		case CASTERMUT:
-			return new CasterMutator((JavaLocation) dst, sources);
-		case CASTEEMUT:
-			return new CasteeMutator((JavaLocation) dst, sources);
-        case BOUNDSWITCH:
-			return new BoundarySwitcher((JavaLocation) dst, sources);
+			case DELETE:
+				return new JavaDeleteOperation((JavaLocation) dst);
+			case OFFBYONE:
+				return new OffByOneOperation((JavaLocation) dst, sources);
+			case APPEND: return new JavaAppendOperation((JavaLocation) dst, sources);
+			case REPLACE: return new JavaReplaceOperation((JavaLocation) dst, sources);
+			case SWAP: return new JavaSwapOperation((JavaLocation) dst, sources);
+			case PARREP:
+				return new MethodParameterReplacer((JavaLocation) dst, sources);
+			case FUNREP:
+				return new MethodReplacer((JavaLocation) dst, sources);
+			case LBOUNDSET:
+				return new LowerBoundSetOperation((JavaLocation) dst, sources);
+			case UBOUNDSET:
+				return new UpperBoundSetOperation((JavaLocation) dst, sources);
+			case RANGECHECK:
+				return new RangeCheckOperation((JavaLocation) dst, sources);
+			case NULLCHECK:
+				return new NullCheckOperation((JavaLocation) dst, sources);
+			case CASTCHECK:
+				return new ClassCastChecker((JavaLocation) dst, sources);
+			case EXPREP:
+				return new ExpressionModRep((JavaLocation) dst, sources);
+			case PARADD:
+				return new MethodParameterAdder((JavaLocation) dst, sources);
+			case EXPADD:
+				return new ExpressionModAdd((JavaLocation) dst, sources);
+			case EXPREM:
+				return new ExpressionModRem((JavaLocation) dst, sources);
+			case PARREM:
+				return new MethodParameterRemover((JavaLocation) dst, sources);
+			case SIZECHECK:
+				return new CollectionSizeChecker((JavaLocation) dst, sources);
+			case OBJINIT:
+				return new ObjectInitializer((JavaLocation) dst, sources);
+			case SEQEXCH:
+				return new SequenceExchanger((JavaLocation) dst, sources);
+			case CASTERMUT:
+				return new CasterMutator((JavaLocation) dst, sources);
+			case CASTEEMUT:
+				return new CasteeMutator((JavaLocation) dst, sources);
+			case BOUNDSWITCH:
+				return new BoundarySwitcher((JavaLocation) dst, sources);
+			case ROR:
+				return new ROR((JavaLocation) dst, sources);
+			case AOR:
+				return new AOR((JavaLocation) dst, sources);
+			case LCR:
+				return new LCR((JavaLocation) dst, sources);
+			case ABS:
+				return new ABS((JavaLocation) dst, sources);
+			case UOI:
+				return new UOI((JavaLocation) dst, sources);
 		}
 		return null;
 	}
@@ -432,10 +442,39 @@ public class JavaEditFactory {
 			}
 			return retVal;
 		}
+		case ROR:
         case BOUNDSWITCH: {
 			List<WeightedHole> retVal = new LinkedList<>();
 			Set<Expression> relationalExprs = locationStmt.getRelationalExpressions();
 			for (Expression e : relationalExprs) {
+				ExpHole hole = new ExpHole(e, e, locationStmt.getStmtId());
+				retVal.add(new WeightedHole(hole));
+			}
+			return retVal;
+		}
+		case AOR: {
+			List<WeightedHole> retVal = new LinkedList<>();
+			Set<Expression> arithmeticExprs = locationStmt.getArithmeticExpressions();
+			for (Expression e : arithmeticExprs) {
+				ExpHole hole = new ExpHole(e, e, locationStmt.getStmtId());
+				retVal.add(new WeightedHole(hole));
+			}
+			return retVal;
+		}
+		case LCR: {
+			List<WeightedHole> retVal = new LinkedList<>();
+			Set<Expression> logicalConnectorExprs = locationStmt.getLogicalConnectorExpressions();
+			for (Expression e : logicalConnectorExprs) {
+				ExpHole hole = new ExpHole(e, e, locationStmt.getStmtId());
+				retVal.add(new WeightedHole(hole));
+			}
+			return retVal;
+		}
+		case UOI:
+		case ABS: {
+			List<WeightedHole> retVal = new LinkedList<>();
+			Set<Expression> absExpressions = locationStmt.getAbsExpressions();
+			for (Expression e : absExpressions) {
 				ExpHole hole = new ExpHole(e, e, locationStmt.getStmtId());
 				retVal.add(new WeightedHole(hole));
 			}
@@ -508,8 +547,16 @@ public class JavaEditFactory {
 			return locationStmt.getCasterTypes().size() > 0;
 		case CASTEEMUT:
 			return locationStmt.getCasteeExpressions().size() > 0;
+		case ROR:
         case BOUNDSWITCH:
         	return locationStmt.getRelationalExpressions().size() > 0;
+		case AOR:
+			return locationStmt.getArithmeticExpressions().size() > 0;
+		case LCR:
+			return locationStmt.getLogicalConnectorExpressions().size() > 0;
+		case UOI:
+		case ABS:
+		    return locationStmt.getAbsExpressions().size() > 0;
 		}
 		return false;
 	}

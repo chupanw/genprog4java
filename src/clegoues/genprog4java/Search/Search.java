@@ -39,6 +39,7 @@ import clegoues.genprog4java.fitness.Fitness;
 import clegoues.genprog4java.localization.Localization;
 import clegoues.genprog4java.localization.Location;
 import clegoues.genprog4java.main.Configuration;
+import clegoues.genprog4java.main.Solutions;
 import clegoues.genprog4java.mut.EditOperation;
 import clegoues.genprog4java.mut.Mutation;
 import clegoues.genprog4java.mut.WeightedHole;
@@ -103,9 +104,10 @@ public abstract class Search<G extends EditOperation> {
 			.inGroup( "Search Parameters" )
 			.build();
 	//private static boolean continueSearch = false;
-	static boolean continueSearch = ConfigurationBuilder.of( BOOLEAN )
+	static boolean continueSearch = ConfigurationBuilder.of( BOOL_ARG )
 			.withVarName( "continueSearch" )
 			.withFlag( "continue" )
+			.withDefault("false")
 			.withHelp( "continue searching after finding a repair" )
 			.inGroup( "Search Parameters" )
 			.build();
@@ -187,7 +189,11 @@ public abstract class Search<G extends EditOperation> {
 			case "castermut":  mutations.add(new WeightedMutation(Mutation.CASTERMUT, weight)); break;
 			case "casteemut":  mutations.add(new WeightedMutation(Mutation.CASTEEMUT, weight)); break;
             case "boundswitch": mutations.add(new WeightedMutation(Mutation.BOUNDSWITCH, weight)); break;
-
+			case "ror": mutations.add(new WeightedMutation(Mutation.ROR, weight)); break;
+			case "aor": mutations.add(new WeightedMutation(Mutation.AOR, weight)); break;
+			case "lcr": mutations.add(new WeightedMutation(Mutation.LCR, weight)); break;
+			case "abs": mutations.add(new WeightedMutation(Mutation.ABS, weight)); break;
+			case "uoi": mutations.add(new WeightedMutation(Mutation.UOI, weight)); break;
 			}
 		}
 		Collections.sort(mutations);
@@ -211,6 +217,7 @@ public abstract class Search<G extends EditOperation> {
 			int generation) {
 
 		logger.info("\nRepair Found: " + rep.getName() + " (in " + rep.getVariantFolder() + ")\n");
+		Solutions.markSolution(rep, generation);
 		File repairDir = new File("repair/");
 		if (!repairDir.exists())
 			repairDir.mkdir();

@@ -21,7 +21,7 @@ public class JavaSavedEdit extends JavaEditOperation implements Serializable {
     @Override
     public String getVariantFolder() {
         if (variantOption == null)
-            throw new RuntimeException("The filed variantOption not initialized");
+            throw new RuntimeException("The field variantOption not initialized");
         return this.variantOption;
     }
 

@@ -332,9 +332,12 @@ CachingRepresentation<JavaEditOperation> {
 		command.addArgument(test.toString());
 
 		if (Configuration.editMode == Configuration.EditMode.EXISTING) {
+			StringBuilder options = new StringBuilder();
 		    for (JavaEditOperation e : this.getGenome()) {
-		    	command.addArgument(e.getVariantFolder());
+		    	command.addArgument(e.getVariantOption());
+		    	options.append(e.getVariantOption()).append(" ");
 			}
+		    logger.info("Setting " + options.toString() + "to true");
 		}
 		return command;
 

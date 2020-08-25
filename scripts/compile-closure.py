@@ -31,10 +31,10 @@ def compile():
     tempdir = tempfile.mkdtemp()
     backup_overwrite(pwd, target, tempdir, java_files)
     copyVarexCFiles(pwd, target)
-    p = subprocess.run(['ant', 'compile.tests'], cwd=pwd)
+    p = subprocess.run(['ant', 'compile-tests'], cwd=pwd)
     # Sanity check and merge check need these new class files in the -classpath argument
     if p.returncode == 0:
-        copy_compiled_classes(pwd, target)
+        copy_compiled_classes(pwd, target, java_files)
     recover_source_files(pwd, tempdir, java_files)
     cleanupVarexCFiles(pwd)
     shutil.rmtree(tempdir)
@@ -49,11 +49,11 @@ def compile():
 def copyVarexCFiles(pwd, target): 
     source = os.path.join(pwd, target, 'varexc')
     if os.path.exists(source):
-        dst = os.path.join(pwd, 'src/main/java/varexc/')
+        dst = os.path.join(pwd, 'src/varexc/')
         shutil.copytree(source, dst)
 
 def cleanupVarexCFiles(pwd): 
-    d = os.path.join(pwd, 'src/main/java/varexc/')
+    d = os.path.join(pwd, 'src/varexc/')
     if os.path.exists(d):
         shutil.rmtree(d)
 
@@ -61,15 +61,15 @@ def cleanupVarexCFiles(pwd):
 def recover_source_files(pwd, tempdir, java_files):
     for f in java_files:
         if os.path.exists(os.path.join(tempdir, f)):
-            abs_origin_fp = os.path.join(pwd, 'src/main/java/', f)
+            abs_origin_fp = os.path.join(pwd, 'src/', f)
             abs_backup = os.path.join(tempdir, f)
             shutil.copy(abs_backup, abs_origin_fp)
 
 
-def copy_compiled_classes(pwd, target): 
+def copy_compiled_classes(pwd, target, java_files):
     for f in java_files:
        qualified_class_file = f[:-5] + ".class"
-       abs_cls = os.path.join(pwd, 'target/classes', qualified_class_file)
+       abs_cls = os.path.join(pwd, 'build/classes', qualified_class_file)
        abs_target_cls = os.path.join(pwd, target, qualified_class_file)
        shutil.copy(abs_cls, abs_target_cls)
 
@@ -82,7 +82,7 @@ def backup_overwrite(pwd, target, tempdir, java_files):
         if not os.path.isdir(d):
             os.makedirs(d)
         # backup, skip if files not exist in the original src folder, e.g., GlobalOptions.java
-        abs_origin_fp = os.path.join(pwd, 'src/main/java/', f)
+        abs_origin_fp = os.path.join(pwd, 'src/', f)
         if os.path.exists(abs_origin_fp):
             abs_backup = os.path.join(tempdir, f)
             shutil.copy(abs_origin_fp, abs_backup)
@@ -95,7 +95,7 @@ def backup_overwrite(pwd, target, tempdir, java_files):
 
 def rm_class_file(pwd, javaFile): 
     classFile = javaFile[:-len(".java")] + ".class"
-    abs_classFile = os.path.join(pwd, "target/classes", classFile)
+    abs_classFile = os.path.join(pwd, "build/classes", classFile)
     if os.path.exists(abs_classFile):
         os.remove(abs_classFile)
 

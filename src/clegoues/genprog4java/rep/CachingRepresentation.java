@@ -307,6 +307,7 @@ Representation<G>  {
 			out.flush();
 			errOut.flush();
 			String output = out.toString();
+//			System.out.println(output);	// can be useful for debugging
 			out.reset();
 			errOut.reset();
 			posFit = CachingRepresentation.parseTestResults(

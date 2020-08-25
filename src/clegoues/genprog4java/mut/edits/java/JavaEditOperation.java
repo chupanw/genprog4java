@@ -49,6 +49,10 @@ public abstract class JavaEditOperation implements EditOperation<ASTRewrite> {
 	private EditHole holeCode = null;
 	protected String variantFolder = null;
 
+	public boolean isExpMutation() {
+		return false;
+	}
+
 	protected JavaEditOperation() { } 
 	
 	public JavaEditOperation(JavaLocation location) {
@@ -75,6 +79,31 @@ public abstract class JavaEditOperation implements EditOperation<ASTRewrite> {
 	    if (variantFolder == null)
 	    	throw new RuntimeException("The field variantFolder not initialized");
 		return variantFolder;
+	}
+
+	/**
+	 * Used in EXISTING mode to set the boolean value
+     *
+	 * In most cases, should be the same as the variantFolder, but basic mutation operators might have some
+	 * suffixes, hence this helper method
+     *
+	 * Override by {@link AOR}, {@link ROR}, {@link UOI}
+	 */
+	public String getVariantOption() {
+		return getVariantFolder();
+	}
+
+	/**
+	 * Override by {@link AOR}, {@link ROR}, {@link UOI}
+	 */
+	public void setVariantOption(String optionName) {
+	}
+
+	/**
+	 * Override by {@link AOR}, {@link ROR}, {@link UOI}
+	 */
+	public String getVariantOptionSuffix() {
+		return "";
 	}
 
 	public void setVariantFolder(String f) {

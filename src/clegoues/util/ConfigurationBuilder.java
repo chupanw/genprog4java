@@ -34,34 +34,12 @@
 
 package clegoues.util;
 
-import java.io.File;
-import java.io.FileReader;
-import java.io.IOException;
-import java.io.OutputStream;
-import java.io.PrintWriter;
-import java.io.StringWriter;
-import java.lang.reflect.Field;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Properties;
-import java.util.Set;
-import java.util.TreeSet;
-
-import org.apache.commons.cli.CommandLine;
-import org.apache.commons.cli.CommandLineParser;
-import org.apache.commons.cli.GnuParser;
-import org.apache.commons.cli.HelpFormatter;
-import org.apache.commons.cli.Option;
-import org.apache.commons.cli.OptionBuilder;
-import org.apache.commons.cli.Options;
-import org.apache.commons.cli.ParseException;
+import org.apache.commons.cli.*;
 import org.apache.log4j.Logger;
 
-import clegoues.genprog4java.mut.WeightedMutation;
-import clegoues.util.ConfigurationBuilder.LexicalCast;
+import java.io.*;
+import java.lang.reflect.Field;
+import java.util.*;
 
 /**
  * Allows the construction of configuration parameters that may be set by the
@@ -667,6 +645,7 @@ public class ConfigurationBuilder< T > {
 		Properties tmp = new Properties();
 		for ( Map.Entry< String, FieldAccess<?> > me : accessors.entrySet() )
 			tmp.setProperty( me.getKey(), props.getProperty( me.getKey() ) );
+		logger.info(tmp.toString());
 		try {
 			tmp.store( out, null );
 		} catch (IOException e) {

@@ -118,10 +118,11 @@ public class JavaAppendOperation extends JavaEditOperation {
 			Block block = ast.newBlock();
 			block.statements().add(mis);
 
+			// Note: the order of the following calls matters!
 			applyEditAndUpdateNodeStore(rewriter, block, nodeStore, locationNode, locationNodeCopy);
-			finalizer.markVariantMethod(locationNode, vm);
-			finalizer.checkSpecialStatements((Statement) locationNode, (Statement) fixCodeNodeCopy, nodeStore);
-			finalizer.recordVariantCallsite(vm, block);
+			finalizer.markVariantMethod(locationNode, vm, false);
+			finalizer.checkSpecialStatements((Statement) locationNode, (Statement) fixCodeNodeCopy, vm, nodeStore);
+			finalizer.recordVariantCallsite(locationNode, vm, block);
 		}
 		else {
 			throw new RuntimeException("Unexpected APPEND, trying to append " + fixCodeNodeCopy.getClass() + " to " + locationNode.getClass());
