@@ -413,6 +413,7 @@ public class RewriteFinalizer extends ASTVisitor {
         vdf.setName(ast.newSimpleName(name));
         FieldDeclaration fd = ast.newFieldDeclaration(vdf);
         fd.setType((Type) ASTNode.copySubtree(ast, t));
+        fd.modifiers().add(ast.newModifier(Modifier.ModifierKeyword.STATIC_KEYWORD));
         return fd;
     }
 
@@ -939,12 +940,46 @@ class StoreStateBeforeMethodCallVisitor extends ASTVisitor {
             mi.setExpression(ast.newSimpleName("stack_" + id));
             mi.setName(ast.newSimpleName("pop"));
             CastExpression cast = ast.newCastExpression();
-            cast.setType(sortedVariables.get(i).getType());
+            cast.setType(convertPrimitive(sortedVariables.get(i).getType(), ast));
             cast.setExpression(mi);
             assign.setRightHandSide(cast);
             restoreBody.statements().add(ast.newExpressionStatement(assign));
         }
         lsr.insertLast(restoreMethod, null);
+    }
+
+    public Type convertPrimitive(Type t, AST ast) {
+        if (t.isPrimitiveType()) {
+            PrimitiveType pt = (PrimitiveType) t;
+            if (pt.getPrimitiveTypeCode() == PrimitiveType.INT) {
+                return ast.newSimpleType(ast.newName("java.lang.Integer"));
+            }
+            else if (pt.getPrimitiveTypeCode() == PrimitiveType.BOOLEAN) {
+                return ast.newSimpleType(ast.newName("java.lang.Boolean"));
+            }
+            else if (pt.getPrimitiveTypeCode() == PrimitiveType.SHORT) {
+                return ast.newSimpleType(ast.newName("java.lang.Short"));
+            }
+            else if (pt.getPrimitiveTypeCode() == PrimitiveType.LONG) {
+                return ast.newSimpleType(ast.newName("java.lang.Long"));
+            }
+            else if (pt.getPrimitiveTypeCode() == PrimitiveType.FLOAT) {
+                return ast.newSimpleType(ast.newName("java.lang.Float"));
+            }
+            else if (pt.getPrimitiveTypeCode() == PrimitiveType.DOUBLE) {
+                return ast.newSimpleType(ast.newName("java.lang.Double"));
+            }
+            else if (pt.getPrimitiveTypeCode() == PrimitiveType.BYTE) {
+                return ast.newSimpleType(ast.newName("java.lang.Byte"));
+            }
+            else if (pt.getPrimitiveTypeCode() == PrimitiveType.CHAR) {
+                return ast.newSimpleType(ast.newName("java.lang.Character"));
+            }
+            else {
+                throw new RuntimeException("Unknown primitive type: " + pt);
+            }
+        }
+        return t;
     }
 
     @Override
