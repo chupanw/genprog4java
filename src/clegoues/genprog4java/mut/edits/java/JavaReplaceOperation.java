@@ -55,7 +55,7 @@ public class JavaReplaceOperation extends JavaEditOperation {
 			((Block) replacement).statements().add(ife);
 		}
 
-        applyEditAndUpdateNodeStore(rewriter, replacement, nodeStore, locationNode, originalCodeNode);
+        applyEditAndUpdateNodeStore(rewriter, replacement, nodeStore, locationNode, originalCodeNode, null);
 	}
 
 	@Override
@@ -97,7 +97,7 @@ public class JavaReplaceOperation extends JavaEditOperation {
 		block.statements().add(mis);
 
 		// Note: the order of the following calls matters!
-		applyEditAndUpdateNodeStore(rewriter, block, nodeStore, locationNode, locationNodeCopy);
+		applyEditAndUpdateNodeStore(rewriter, block, nodeStore, locationNode, locationNodeCopy, finalizer);
 		finalizer.markVariantMethod(locationNode, vm, false);
 		finalizer.checkSpecialStatements((Statement) locationNode, (Statement) fixCodeNodeCopy, vm, nodeStore);
 		finalizer.recordVariantCallsite(locationNode, vm, block);

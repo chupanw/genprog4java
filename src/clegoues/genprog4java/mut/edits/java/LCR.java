@@ -68,7 +68,7 @@ public class LCR extends JavaEditOperation {
 //        mi.setExpression(ast.newThisExpression());
         mi.setName(ast.newSimpleName(getVariantFolder()));
 
-        applyEditAndUpdateNodeStore(rewriter, mi, nodeStore, locationExpr, locationExprCopy);
+        applyEditAndUpdateNodeStore(rewriter, mi, nodeStore, locationExpr, locationExprCopy, finalizer);
         finalizer.markVariantMethod(locationExpr, vm, true);
     }
 

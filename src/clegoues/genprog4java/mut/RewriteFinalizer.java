@@ -27,6 +27,7 @@ public class RewriteFinalizer extends ASTVisitor {
     private HashMap<MethodDeclaration, VariantCallsite> variant2Callsite = new HashMap<>();
     private HashMap<MethodDeclaration, HashSet<MethodDeclaration>> method2Variants = new HashMap<>();
     private HashMap<ASTNode, MethodDeclaration> firstModifiedInVariant = new HashMap<>();
+    private HashSet<ASTNode> pendingChanges = new HashSet<>();
     /**
      * Applicable to all expression level operators
      */
@@ -193,7 +194,7 @@ public class RewriteFinalizer extends ASTVisitor {
     }
 
     private void rewriteBreakContinueReturnInVariantMethods(MethodDeclaration md, VarNamesCollector collector, VarToFieldVisitor var2field) {
-        VariantBreakContinueReturnVisitor v = new VariantBreakContinueReturnVisitor(collector, rewriter, var2field);
+        VariantBreakContinueReturnVisitor v = new VariantBreakContinueReturnVisitor(collector, rewriter, var2field, pendingChanges);
         for (MethodDeclaration m : method2Variants.get(md)) {
             if (!variantsWithoutRewritingReturn.contains(m)) {
                 m.accept(v);
@@ -221,6 +222,14 @@ public class RewriteFinalizer extends ASTVisitor {
             ListRewrite lr = rewriter.getListRewrite(classDecl, TypeDeclaration.BODY_DECLARATIONS_PROPERTY);
             lr.insertLast(m, null);
         }
+    }
+
+    /**
+     * Mark that a node will be replaced later by some other variants, so that we can avoid mutating it. Otherwise,
+     * some variant methods might get silenced.
+     */
+    public void markPendingChange(ASTNode n) {
+        pendingChanges.add(n);
     }
 
     public void checkSpecialStatements(Statement locationNode, Statement fixCodeNode, MethodDeclaration variantMethod, HashMap<ASTNode, List<ASTNode>> nodeStore) {
@@ -701,17 +710,22 @@ class VariantBreakContinueReturnVisitor extends ASTVisitor {
     ASTRewrite rewriter;
     VarToFieldVisitor var2field;
     AST ast;
+    HashSet<ASTNode> pendingChanges;
 
-    public VariantBreakContinueReturnVisitor(VarNamesCollector collector, ASTRewrite rewriter, VarToFieldVisitor var2field) {
+    public VariantBreakContinueReturnVisitor(VarNamesCollector collector, ASTRewrite rewriter, VarToFieldVisitor var2field, HashSet<ASTNode> pendingChanges) {
         this.collector = collector;
         this.rewriter = rewriter;
         this.var2field = var2field;
+        this.pendingChanges = pendingChanges;
         ast = rewriter.getAST();
     }
 
     @Override
     public boolean visit(BreakStatement node) {
         if (!isPartOfSwitchStatement(node)) {
+            if (pendingChanges.contains(node)) {
+                return false;
+            }
             Block b = ast.newBlock();
             Assignment assign = ast.newAssignment();
 //            FieldAccess fa = ast.newFieldAccess();
@@ -730,6 +744,9 @@ class VariantBreakContinueReturnVisitor extends ASTVisitor {
 
     @Override
     public boolean visit(ContinueStatement node) {
+        if (pendingChanges.contains(node)) {
+            return false;
+        }
         Block b = ast.newBlock();
         Assignment assign = ast.newAssignment();
 //        FieldAccess fa = ast.newFieldAccess();
@@ -747,6 +764,9 @@ class VariantBreakContinueReturnVisitor extends ASTVisitor {
 
     @Override
     public boolean visit(ReturnStatement node) {
+        if (pendingChanges.contains(node)) {
+            return false;
+        }
         Block b = ast.newBlock();
         Assignment assign = ast.newAssignment();
 //        FieldAccess fa = ast.newFieldAccess();

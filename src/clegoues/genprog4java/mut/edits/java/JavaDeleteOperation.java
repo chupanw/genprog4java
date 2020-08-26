@@ -55,7 +55,7 @@ public class JavaDeleteOperation extends JavaEditOperation {
 		outerBlock.statements().add(ife);
 
 		/* Replace the faulty statement with the empty Block. */
-        applyEditAndUpdateNodeStore(rewriter, outerBlock, nodeStore, locationNode, originalCodeNode);
+        applyEditAndUpdateNodeStore(rewriter, outerBlock, nodeStore, locationNode, originalCodeNode, null);
 	}
 
 	@Override
@@ -92,7 +92,7 @@ public class JavaDeleteOperation extends JavaEditOperation {
 		block.statements().add(mis);
 
 		// Note: the order of the following calls matters!
-		applyEditAndUpdateNodeStore(rewriter, block, nodeStore, locationNode, locationNodeCopy);
+		applyEditAndUpdateNodeStore(rewriter, block, nodeStore, locationNode, locationNodeCopy, finalizer);
 		finalizer.markVariantMethod(locationNode, vm, false);
 		finalizer.checkSpecialStatements((Statement) locationNode, null, vm, nodeStore);
 		finalizer.recordVariantCallsite(locationNode, vm, block);

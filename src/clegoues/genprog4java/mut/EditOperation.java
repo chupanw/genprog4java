@@ -93,7 +93,8 @@ public interface EditOperation<R> {
                                              ASTNode astReplacement,	// AST node used for replacing
 											 HashMap<ASTNode, List<ASTNode>> nodeStore, // bookkeeping editing progress
 											 ASTNode originalLocationNode,
-											 ASTNode newLocationNode
+											 ASTNode newLocationNode,
+											 RewriteFinalizer finalizer
 	) {
 		ASTNode toBeReplaced = originalLocationNode;
 		if (nodeStore.containsKey(toBeReplaced)) {
@@ -101,6 +102,8 @@ public interface EditOperation<R> {
 			toBeReplaced = l.get(l.size() - 1);
 		}
 		rewriter.replace(toBeReplaced, astReplacement, null);
+		if (finalizer != null)
+			finalizer.markPendingChange(toBeReplaced);
 
 		updateNodeStore(nodeStore, originalLocationNode, newLocationNode);
 		ArrayList<ASTNode> originChildren = getChildrenStatementsOrExpressions(originalLocationNode);

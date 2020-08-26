@@ -10,6 +10,7 @@ import clegoues.genprog4java.mut.EditHole;
 import clegoues.genprog4java.mut.EditOperation;
 import clegoues.genprog4java.mut.RewriteFinalizer;
 import clegoues.genprog4java.mut.edits.java.*;
+import clegoues.genprog4java.mut.holes.java.ExpHole;
 import clegoues.genprog4java.mut.holes.java.JavaLocation;
 import clegoues.genprog4java.mut.holes.java.StatementHole;
 import clegoues.genprog4java.mut.varexc.VarexCGlobal;
@@ -338,7 +339,47 @@ public class MergedRepresentation extends JavaRepresentation {
     }
 
     private void sortGenome() {
-        this.getGenome().sort(Comparator.comparingInt(o -> o.getLocation().getId()));
+        ArrayList<JavaEditOperation> genome = this.getGenome();
+        ArrayList<JavaEditOperation> tmp = new ArrayList<>();
+        do {
+            if (!tmp.isEmpty()) {
+                genome.removeAll(tmp);
+                genome.addAll(tmp);
+                tmp.clear();
+            }
+            for (int i = 0; i < genome.size(); i++) {
+                ASTNode li;
+                if (genome.get(i).isExpMutation())
+                    li = ((ExpHole) genome.get(i).getHoleCode()).getLocationExp();
+                else
+                    li = ((JavaLocation) genome.get(i).getLocation()).getCodeElement();
+                for (int j = i + 1; j < genome.size(); j++) {
+                    ASTNode lj;
+                    if (genome.get(j).isExpMutation())
+                        lj = ((ExpHole) genome.get(j).getHoleCode()).getLocationExp();
+                    else
+                        lj = ((JavaLocation) genome.get(j).getLocation()).getCodeElement();
+                    if (isChildOf(li, lj)) {
+                        tmp.add(genome.get(i));
+                        break;
+                    }
+                }
+            }
+        } while (!tmp.isEmpty());
+    }
+
+    private boolean isChildOf(ASTNode a, ASTNode b) {
+        if (a.getParent() == b) {
+            return true;
+        }
+        else {
+            if (a.getParent() != null) {
+                return isChildOf(a.getParent(), b);
+            }
+            else {
+                return false;
+            }
+        }
     }
 
     private void putExpMutationToEnd() {

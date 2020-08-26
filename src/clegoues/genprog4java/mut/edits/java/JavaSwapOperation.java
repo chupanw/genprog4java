@@ -51,7 +51,7 @@ public class JavaSwapOperation extends JavaEditOperation {
 		elseBlock1.statements().add(origLocationNode1);
 		ife1.setElseStatement(elseBlock1);
 		// assemble
-		applyEditAndUpdateNodeStore(rewriter, newBlock1, nodeStore, locationNode, origLocationNode1);
+		applyEditAndUpdateNodeStore(rewriter, newBlock1, nodeStore, locationNode, origLocationNode1, null);
 
 
 		Block newBlock2 = rewriter.getAST().newBlock();
@@ -69,7 +69,7 @@ public class JavaSwapOperation extends JavaEditOperation {
 		elseBlock2.statements().add(origLocationNode2);
 		ife2.setElseStatement(elseBlock2);
 		// assemble
-		applyEditAndUpdateNodeStore(rewriter, newBlock2, nodeStore, fixCode.getCode(), origLocationNode2);
+		applyEditAndUpdateNodeStore(rewriter, newBlock2, nodeStore, fixCode.getCode(), origLocationNode2, null);
 	}
 
 	@Override

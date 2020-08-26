@@ -48,7 +48,7 @@ public class BoundarySwitcher extends JavaEditOperation {
         ife.setElseExpression(locationExprCopy);
         ParenthesizedExpression pe = rewriter.getAST().newParenthesizedExpression();
         pe.setExpression(ife);
-        applyEditAndUpdateNodeStore(rewriter, pe, nodeStore, locationExpr, locationExprCopy);
+        applyEditAndUpdateNodeStore(rewriter, pe, nodeStore, locationExpr, locationExprCopy, null);
     }
 
     @Override

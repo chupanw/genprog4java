@@ -115,7 +115,7 @@ public class AOR extends JavaEditOperation {
 
         MethodInvocation mi = genMethodInvocation(rewriter, this.getVariantFolder(), false);
 
-        applyEditAndUpdateNodeStore(rewriter, mi, nodeStore, locationExpr, locationExprCopy);
+        applyEditAndUpdateNodeStore(rewriter, mi, nodeStore, locationExpr, locationExprCopy, finalizer);
         finalizer.markVariantMethod(locationExpr, md, true);
     }
 

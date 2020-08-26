@@ -105,7 +105,7 @@ public class ABS extends JavaEditOperation {
         MethodDeclaration md = genMethodDeclaration(rewriter, this.getVariantFolder(), mutated, false);
         MethodInvocation mi = genMethodInvocation(rewriter, this.getVariantFolder(), false);
 
-        applyEditAndUpdateNodeStore(rewriter, mi, nodeStore, locationExpr, locationExprCopy);
+        applyEditAndUpdateNodeStore(rewriter, mi, nodeStore, locationExpr, locationExprCopy, finalizer);
         finalizer.markVariantMethod(locationExpr, md, true);
     }
 

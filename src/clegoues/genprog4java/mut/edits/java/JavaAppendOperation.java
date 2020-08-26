@@ -79,7 +79,7 @@ public class JavaAppendOperation extends JavaEditOperation {
 				newBlock.statements().add(stm1);
 				newBlock.statements().add(ife);
 
-				applyEditAndUpdateNodeStore(rewriter, newBlock, nodeStore, locationNode, stm1);
+				applyEditAndUpdateNodeStore(rewriter, newBlock, nodeStore, locationNode, stm1, null);
 			}
 		}
 	}
@@ -122,7 +122,7 @@ public class JavaAppendOperation extends JavaEditOperation {
 			block.statements().add(mis);
 
 			// Note: the order of the following calls matters!
-			applyEditAndUpdateNodeStore(rewriter, block, nodeStore, locationNode, locationNodeCopy);
+			applyEditAndUpdateNodeStore(rewriter, block, nodeStore, locationNode, locationNodeCopy, finalizer);
 			finalizer.markVariantMethod(locationNode, vm, false);
 			finalizer.checkSpecialStatements((Statement) locationNode, (Statement) fixCodeNodeCopy, vm, nodeStore);
 			finalizer.recordVariantCallsite(locationNode, vm, block);

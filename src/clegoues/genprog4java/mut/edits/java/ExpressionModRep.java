@@ -33,7 +33,7 @@ public class ExpressionModRep extends ExpressionReplacer {
 		ParenthesizedExpression pe = rewriter.getAST().newParenthesizedExpression();
 		pe.setExpression(ternaryExp);
 
-		applyEditAndUpdateNodeStore(rewriter, pe, nodeStore, locationExp, newLocationExp);
+		applyEditAndUpdateNodeStore(rewriter, pe, nodeStore, locationExp, newLocationExp, null);
 	}
 
 	@Override
