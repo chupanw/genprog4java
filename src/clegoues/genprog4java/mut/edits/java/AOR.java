@@ -237,6 +237,10 @@ public class AOR extends JavaEditOperation {
             rightCast.setExpression(peRight);
             then.setRightOperand(rightCast);
 
+            for (Object o : locationExpr.extendedOperands()) {
+                then.extendedOperands().add(ASTNode.copySubtree(ast, (ASTNode) o));
+            }
+
             then.setOperator(op);
             cond.setThenExpression(then);
             cond.setElseExpression(otherwise);
