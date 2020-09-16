@@ -20,11 +20,12 @@ import static org.eclipse.jdt.core.dom.InfixExpression.Operator.*;
  */
 public class AOR extends JavaEditOperation {
     /**
-     * int
-     * short
-     * long
-     * float
-     * double
+     * java.lang.Integer
+     * java.lang.Short
+     * java.lang.Character
+     * java.lang.Long
+     * java.lang.Float
+     * java.lang.Double
      */
     public String type;
     InfixExpression.Operator op;
@@ -73,14 +74,14 @@ public class AOR extends JavaEditOperation {
         if ((mutatedMethod.getModifiers() & Modifier.STATIC) != 0) {
             method.modifiers().add(ast.newModifier(Modifier.ModifierKeyword.STATIC_KEYWORD));
         }
-        method.setReturnType2(ast.newPrimitiveType(type2Code(this.type)));
+        method.setReturnType2(ast.newSimpleType(ast.newName(this.type)));
         // meta-program generation relies on this to find the right type
         if (addParameters) {
             SingleVariableDeclaration p1 = ast.newSingleVariableDeclaration();
             SingleVariableDeclaration p2 = ast.newSingleVariableDeclaration();
-            p1.setType(ast.newPrimitiveType(type2Code(this.type)));
+            p1.setType(ast.newSimpleType(ast.newName(this.type)));
             p1.setName(ast.newSimpleName("left"));
-            p2.setType(ast.newPrimitiveType(type2Code(this.type)));
+            p2.setType(ast.newSimpleType(ast.newName(this.type)));
             p2.setName(ast.newSimpleName("right"));
             method.parameters().add(p1);
             method.parameters().add(p2);
@@ -90,50 +91,6 @@ public class AOR extends JavaEditOperation {
         body.statements().add(ret);
 
         return method;
-    }
-
-    private MethodInvocation genConditionMethodCall(AST ast) {
-        MethodInvocation mi = ast.newMethodInvocation();
-        mi.setName(ast.newSimpleName("cond_" + this.getVariantFolder()));
-        return mi;
-    }
-
-    private void genConditionMethod(ASTRewrite rewriter, AST ast) {
-        MethodDeclaration m = ast.newMethodDeclaration();
-        m.setName(ast.newSimpleName("cond_" + this.getVariantFolder()));
-        m.setReturnType2(ast.newPrimitiveType(PrimitiveType.BOOLEAN));
-        m.modifiers().add(ast.newModifier(Modifier.ModifierKeyword.STATIC_KEYWORD));
-        Block body = ast.newBlock();
-        m.setBody(body);
-
-        ArrayList<InfixExpression.Operator> all = new ArrayList<>(Arrays.asList(PLUS, MINUS, TIMES, DIVIDE, REMAINDER));
-        all.remove(locationExpr.getOperator());
-        Expression cond = getNextFieldAccess(ast, opToString(all.get(0)));
-        for (int i = 1; i < all.size(); i++) {
-            InfixExpression c = ast.newInfixExpression();
-            c.setOperator(CONDITIONAL_OR);
-            c.setLeftOperand(getNextFieldAccess(ast, opToString(all.get(i))));
-            c.setRightOperand(cond);
-            cond = c;
-        }
-        ReturnStatement ret = ast.newReturnStatement();
-        ret.setExpression(cond);
-        body.statements().add(ret);
-
-        TypeDeclaration classDecl = RewriteFinalizer.getTypeDeclaration(locationExpr);
-        ListRewrite lsr = rewriter.getListRewrite(classDecl, TypeDeclaration.BODY_DECLARATIONS_PROPERTY);
-        lsr.insertLast(m, null);
-    }
-
-    private PrimitiveType.Code type2Code(String t) {
-        switch (t) {
-            case "int": return PrimitiveType.INT;
-            case "short": return PrimitiveType.SHORT;
-            case "long": return PrimitiveType.LONG;
-            case "float": return PrimitiveType.FLOAT;
-            case "double": return PrimitiveType.DOUBLE;
-            default: throw new RuntimeException("Unexpected primitive type: " + t);
-        }
     }
 
     private MethodInvocation genMethodInvocation(ASTRewrite rewriter, String methodName, boolean addArguments) {
@@ -153,18 +110,12 @@ public class AOR extends JavaEditOperation {
         AST ast = rewriter.getAST();
         InfixExpression locationExprCopy = (InfixExpression) ASTNode.copySubtree(ast, locationExpr);
 
-        Expression newExpr = mutate(ast);
+        Expression newExpr = mutate(ast, locationExprCopy);
         MethodDeclaration md = genMethodDeclaration(rewriter, this.getVariantFolder(), newExpr, false);
-        genConditionMethod(rewriter, ast);
 
-        ConditionalExpression ite = ast.newConditionalExpression();
-        ite.setExpression(genConditionMethodCall(ast));
-        ite.setThenExpression(genMethodInvocation(rewriter, this.getVariantFolder(), false));
-        ite.setElseExpression(locationExprCopy);
-        ParenthesizedExpression pe = ast.newParenthesizedExpression();
-        pe.setExpression(ite);
+        MethodInvocation mi = genMethodInvocation(rewriter, this.getVariantFolder(), false);
 
-        applyEditAndUpdateNodeStore(rewriter, pe, nodeStore, locationExpr, locationExprCopy, finalizer);
+        applyEditAndUpdateNodeStore(rewriter, mi, nodeStore, locationExpr, locationExprCopy, finalizer);
         finalizer.markVariantMethod(locationExpr, md, true);
     }
 
@@ -174,7 +125,7 @@ public class AOR extends JavaEditOperation {
             List<TypeOpPair> existing = typeOpCache.get(locationExpr);
             allPairs.removeAll(existing);
         }
-        TypeOpPair res = new TypeOpPair("int", PLUS);
+        TypeOpPair res = new TypeOpPair("java.lang.Integer", PLUS);
         if (allPairs.size() > 0) {
             int idx = rand.nextInt(allPairs.size());
             res = allPairs.get(idx);
@@ -191,7 +142,14 @@ public class AOR extends JavaEditOperation {
     }
 
     private List<TypeOpPair> genAllPairs(InfixExpression locationExpr) {
-        List<String> allTypes = Arrays.asList("int", "short", "long", "double", "float");
+        List<String> allTypes = Arrays.asList(
+                "java.lang.Integer",
+                "java.lang.Character",
+                "java.lang.Short",
+                "java.lang.Long",
+                "java.lang.Double",
+                "java.lang.Float"
+        );
         List<InfixExpression.Operator> allOps = new ArrayList<>(Arrays.asList(PLUS, MINUS, TIMES, DIVIDE, REMAINDER));
         allOps.remove(locationExpr.getOperator());
         List<TypeOpPair> res = new ArrayList<>();
@@ -204,49 +162,27 @@ public class AOR extends JavaEditOperation {
     }
 
 
-    private Expression mutate(AST ast) {
-        InfixExpression copy = (InfixExpression) ASTNode.copySubtree(ast, locationExpr);
+    private Expression mutate(AST ast, InfixExpression original) {
         Set<InfixExpression.Operator> all = new HashSet<>(Arrays.asList(
                 PLUS, MINUS, TIMES, DIVIDE, REMAINDER
         ));
-        all.remove(locationExpr.getOperator());
-
-        ParenthesizedExpression pe = ast.newParenthesizedExpression();
-        pe.setExpression(copy);
-        CastExpression cast = ast.newCastExpression();
-        cast.setType(ast.newPrimitiveType(type2Code(this.type)));
-        cast.setExpression(pe);
-        Expression otherwise = cast;
-
+        all.remove(original.getOperator());
+        Expression otherwise = original;
         for (InfixExpression.Operator op : all) {
             ConditionalExpression cond = ast.newConditionalExpression();
             cond.setExpression(getNextFieldAccess(ast, opToString(op)));
             InfixExpression then = ast.newInfixExpression();
-
-            CastExpression leftCast = ast.newCastExpression();
-            ParenthesizedExpression peLeft = ast.newParenthesizedExpression();
-            peLeft.setExpression((Expression) ASTNode.copySubtree(ast, locationExpr.getLeftOperand()));
-            leftCast.setType(ast.newPrimitiveType(type2Code(this.type)));
-            leftCast.setExpression(peLeft);
-            then.setLeftOperand(leftCast);
-
-            CastExpression rightCast = ast.newCastExpression();
-            ParenthesizedExpression peRight = ast.newParenthesizedExpression();
-            peRight.setExpression((Expression) ASTNode.copySubtree(ast, locationExpr.getRightOperand()));
-            rightCast.setType(ast.newPrimitiveType(type2Code(this.type)));
-            rightCast.setExpression(peRight);
-            then.setRightOperand(rightCast);
-
-            for (Object o : locationExpr.extendedOperands()) {
+            then.setLeftOperand((Expression) ASTNode.copySubtree(ast, original.getLeftOperand()));
+            then.setRightOperand((Expression) ASTNode.copySubtree(ast, original.getRightOperand()));
+            then.setOperator(op);
+            for (Object o : original.extendedOperands()) {
                 then.extendedOperands().add(ASTNode.copySubtree(ast, (ASTNode) o));
             }
-
-            then.setOperator(op);
             cond.setThenExpression(then);
             cond.setElseExpression(otherwise);
-            ParenthesizedExpression peCondExp = ast.newParenthesizedExpression();
-            peCondExp.setExpression(cond);
-            otherwise = peCondExp;
+            ParenthesizedExpression pe = ast.newParenthesizedExpression();
+            pe.setExpression(cond);
+            otherwise = pe;
         }
         return otherwise;
     }
