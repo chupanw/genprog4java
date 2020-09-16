@@ -1,5 +1,6 @@
 package clegoues.genprog4java.mut;
 
+import clegoues.genprog4java.main.Configuration;
 import org.eclipse.core.runtime.NullProgressMonitor;
 import org.eclipse.jdt.core.JavaCore;
 import org.eclipse.jdt.core.ToolFactory;
@@ -161,6 +162,9 @@ public class RewriteFinalizer extends ASTVisitor {
      */
     private void updateAllFields() {
         ASTParser parser = ASTParser.newParser(AST.JLS8);
+        Map options = JavaCore.getOptions();
+        JavaCore.setComplianceOptions(Configuration.sourceVersion, options);
+        parser.setCompilerOptions(options);
         parser.setSource(mutatedJavaFile.get().toCharArray());
         parser.setKind(ASTParser.K_COMPILATION_UNIT);
         this.cu = (CompilationUnit) parser.createAST(new NullProgressMonitor());
@@ -279,7 +283,9 @@ public class RewriteFinalizer extends ASTVisitor {
 
     private void updateDoc() {
         String code = this.cu.toString();
-        CodeFormatter formatter = ToolFactory.createCodeFormatter(JavaCore.getOptions());
+        Map options = JavaCore.getOptions();
+        JavaCore.setComplianceOptions(Configuration.sourceVersion, options);
+        CodeFormatter formatter = ToolFactory.createCodeFormatter(options);
         TextEdit edit = formatter.format(CodeFormatter.K_COMPILATION_UNIT, code, 0, code.length(), 0, null);
         try {
             this.mutatedJavaFile.set(code);
@@ -670,15 +676,8 @@ class VarToFieldVisitor extends ASTVisitor {
     }
 
     private boolean isPartOfFieldAccess(ASTNode n) {
-        if (n != null) {
-            if (n instanceof FieldAccess)
-                return true;
-            else
-                return isPartOfFieldAccess(n.getParent());
-        }
-        else {
-            return false;
-        }
+        StructuralPropertyDescriptor property = n.getLocationInParent();
+        return property == FieldAccess.NAME_PROPERTY;
     }
 
     private boolean isQualified(ASTNode n) {
@@ -1040,6 +1039,7 @@ class StoreStateBeforeMethodCallVisitor extends ASTVisitor {
         vdf.setName(ast.newSimpleName("stack_" + id));
         vdf.setInitializer(cic);
         FieldDeclaration stackField = ast.newFieldDeclaration(vdf);
+        stackField.modifiers().add(ast.newModifier(Modifier.ModifierKeyword.STATIC_KEYWORD));
         stackField.setType(ast.newSimpleType(ast.newName("java.util.Stack")));
         mutatedClass.bodyDeclarations().add(stackField);
 
@@ -1047,6 +1047,7 @@ class StoreStateBeforeMethodCallVisitor extends ASTVisitor {
         MethodDeclaration storeMethod = ast.newMethodDeclaration();
         storeMethod.setName(ast.newSimpleName("store_" + id));
         storeMethod.setReturnType2(ast.newPrimitiveType(PrimitiveType.VOID));
+        storeMethod.modifiers().add(ast.newModifier(Modifier.ModifierKeyword.STATIC_KEYWORD));
         Block storeBody = ast.newBlock();
         storeMethod.setBody(storeBody);
         for (int i = 0; i < sortedVariables.size(); i++) {
@@ -1063,6 +1064,7 @@ class StoreStateBeforeMethodCallVisitor extends ASTVisitor {
         MethodDeclaration restoreMethod = ast.newMethodDeclaration();
         restoreMethod.setName(ast.newSimpleName("restore_" + id));
         restoreMethod.setReturnType2(ast.newPrimitiveType(PrimitiveType.VOID));
+        restoreMethod.modifiers().add(ast.newModifier(Modifier.ModifierKeyword.STATIC_KEYWORD));
         Block restoreBody = ast.newBlock();
         restoreMethod.setBody(restoreBody);
         for (int i = sortedVariables.size() - 1; i >= 0; i--) {
