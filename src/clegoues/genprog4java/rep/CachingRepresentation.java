@@ -312,6 +312,10 @@ Representation<G>  {
 			errOut.reset();
 			posFit = CachingRepresentation.parseTestResults(
 					thisTest.getTestName(), output);
+			if (output.contains("No tests found matching Method")) {
+				System.err.println("Ignoring no tests found issue from the JUnitRunner");
+				posFit.setAllPassed(true);	// JUnitRunner issue, ignoring for now
+			}
 
 		} catch (ExecuteException exception) {
 			String errOutput = errOut.toString();
