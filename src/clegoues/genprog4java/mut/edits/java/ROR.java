@@ -28,6 +28,8 @@ public class ROR extends JavaEditOperation {
     public static final HashMap<InfixExpression, List<InfixExpression.Operator>> opCache = new HashMap<>();
     final static Random rand = new Random(Configuration.seed);
 
+    public boolean onlyEquals = false;
+
     public ROR(JavaLocation location, EditHole source) {
         super(location, source);
         this.locationExpr = (InfixExpression) ((ExpHole)this.getHoleCode()).getLocationExp();
@@ -78,9 +80,14 @@ public class ROR extends JavaEditOperation {
     }
 
     private Expression mutate(AST ast, InfixExpression original) {
-        Set<InfixExpression.Operator> all = new HashSet<>(Arrays.asList(
-                LESS, LESS_EQUALS, NOT_EQUALS, EQUALS, GREATER, GREATER_EQUALS
-        ));
+        Set<InfixExpression.Operator> all;
+        if (onlyEquals) {
+            all = new HashSet<>(Arrays.asList(EQUALS, NOT_EQUALS));
+        } else {
+            all = new HashSet<>(Arrays.asList(
+                    LESS, LESS_EQUALS, NOT_EQUALS, EQUALS, GREATER, GREATER_EQUALS
+            ));
+        }
         all.remove(original.getOperator());
         Expression otherwise = original;
         for (InfixExpression.Operator op : all) {

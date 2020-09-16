@@ -19,7 +19,6 @@ import org.eclipse.jdt.core.dom.*;
 import org.eclipse.jdt.core.dom.rewrite.ASTRewrite;
 import org.eclipse.jface.text.BadLocationException;
 import org.eclipse.jface.text.Document;
-import org.eclipse.jface.text.IDocument;
 import org.eclipse.text.edits.MalformedTreeException;
 import org.eclipse.text.edits.TextEdit;
 
@@ -59,10 +58,12 @@ public class MergedRepresentation extends JavaRepresentation {
 
     @Override
     protected ArrayList<Pair<ClassInfo, String>> internalComputeSourceBuffers() {
+        sortGenomeForAOR();
         sortGenome();
         putExpMutationToEnd();
         collectEdits();
         excludeEdits();
+        restrictROR();
         HashSet<EditOperation> toRemove = excludeRepetitive();
         serializeEdits();
         compilableEdits.removeAll(toRemove);    // the actual removal should come after serialization so that single edits can be preserved
@@ -72,12 +73,12 @@ public class MergedRepresentation extends JavaRepresentation {
             String filename = ci.getClassName();
             String path = ci.getPackage();
             String source = pair.getValue();
-            IDocument original = new Document(source);
+            Document original = new Document(source);
             CompilationUnit cu = sourceInfo.getBaseCompilationUnits().get(ci);
             AST ast = cu.getAST();
             ASTRewrite rewriter = ASTRewrite.create(ast);
             VarexCGlobal.addImportGlobalOptions(cu, rewriter);
-            RewriteFinalizer finalizer = new RewriteFinalizer(rewriter);
+            RewriteFinalizer finalizer = new RewriteFinalizer(original);
 
             try {
                 for (JavaEditOperation edit : this.getGenome()) {
@@ -86,26 +87,17 @@ public class MergedRepresentation extends JavaRepresentation {
                         edit.methodEdit(rewriter, nodeStore, finalizer);
                     }
                 }
-                finalizer.finalizeEdits();
+                finalizer.applyEditsSoFar(rewriter);
                 TextEdit edits = rewriter.rewriteAST(original, null);
                 edits.apply(original);
-            } catch (IllegalArgumentException e) {
-                e.printStackTrace();
-                return null;
-            } catch (MalformedTreeException e) {
-                e.printStackTrace();
-                return null;
-            } catch (BadLocationException e) {
-                e.printStackTrace();
-                return null;
-            } catch (ClassCastException e) {
+            } catch (IllegalArgumentException | MalformedTreeException | BadLocationException | ClassCastException e) {
                 e.printStackTrace();
                 return null;
             }
             // FIXME: I sense there's a better way to signify that
             // computeSourceBuffers failed than
             // to return null at those catch blocks
-
+            finalizer.finalizeEdits();
             retVal.add(Pair.of(ci, original.get()));
         }
         retVal.add(Pair.of(new ClassInfo("GlobalOptions", "varexc"), VarexCGlobal.getCodeAsString()));
@@ -128,6 +120,24 @@ public class MergedRepresentation extends JavaRepresentation {
         editFactory.pool.addEdits(uncompilableEdits, false);
         Path path = FileSystems.getDefault().getPath(Configuration.outputDir, Configuration.editSerFile);
         JavaEditPool.serialize(editFactory.pool, path);
+    }
+
+    /**
+     * ROR that compares Objects can only do == or !=
+     */
+    private void restrictROR() {
+        for (EditOperation i : compilableEdits) {
+            if (i instanceof ROR) {
+                ROR rorI = (ROR) i;
+                boolean found = false;
+                for (EditOperation j : uncompilableEdits) {
+                    if (j instanceof ROR && ((ROR) j).locationExpr == rorI.locationExpr) {
+                        found = true;
+                    }
+                }
+                if (found) rorI.onlyEquals = true;
+            }
+        }
     }
 
     /**
@@ -185,17 +195,26 @@ public class MergedRepresentation extends JavaRepresentation {
     private HashSet<EditOperation> excludeRepetitive() {
         HashSet<EditOperation> toRemove = new HashSet<>();
         // the value is the variant folder name that will be kept in the meta program
-        HashMap<Expression, String> uniqueAORLocation = new HashMap<>();
+        HashMap<Expression, HashMap<String, String>> uniqueAORLocation = new HashMap<>();
         HashMap<Expression, String> uniqueUOILocation = new HashMap<>();
         HashMap<Expression, String> uniqueRORLocation = new HashMap<>();
         // no need for LCR and ABS as they have only one variant
         for (EditOperation e : compilableEdits) {
             if (e instanceof AOR) {
-                if (uniqueAORLocation.containsKey(((AOR) e).locationExpr)) {
-                    excludeAndResetVariantOption(toRemove, e, uniqueAORLocation.get(((AOR) e).locationExpr));
+                AOR aor = (AOR) e;
+                if (uniqueAORLocation.containsKey(aor.locationExpr)) {
+                    if (uniqueAORLocation.get(aor.locationExpr).containsKey(aor.type)) {
+                        excludeAndResetVariantOption(toRemove, e, uniqueAORLocation.get(aor.locationExpr).get(aor.type));
+                    }
+                    else {
+                        HashMap<String, String> type2variantFolder = uniqueAORLocation.get(aor.locationExpr);
+                        type2variantFolder.put(aor.type, aor.getVariantFolder());
+                    }
                 }
                 else {
-                    uniqueAORLocation.put(((AOR) e).locationExpr, e.getVariantFolder());
+                    HashMap<String, String> type2variantFolder = new HashMap<>();
+                    type2variantFolder.put(aor.type, aor.getVariantFolder());
+                    uniqueAORLocation.put(aor.locationExpr, type2variantFolder);
                 }
             }
             if (e instanceof UOI) {
@@ -364,8 +383,43 @@ public class MergedRepresentation extends JavaRepresentation {
                         break;
                     }
                 }
+                if (!tmp.isEmpty()) break;
             }
         } while (!tmp.isEmpty());
+    }
+
+    /**
+     * Sort AOR on the same expression based on types, so that mutations can be chained and Java compiler stops complaining potential lossy conversion
+     *
+     *  double > float > long > int > short
+     *
+     *  char is omitted intentionally. Java compiler would complain in both directions of conversion between char and short
+     */
+    private void sortGenomeForAOR() {
+        ArrayList<JavaEditOperation> genome = this.getGenome();
+        List<String> order = Arrays.asList("short", "int", "long", "float", "double");
+        boolean hasChanged = true;
+        while (hasChanged) {
+            hasChanged = false;
+            for (int i = 0; i < genome.size(); i++) {
+                if (genome.get(i) instanceof AOR) {
+                    AOR editI = (AOR) genome.get(i);
+                    String typeI = editI.type;
+                    for (int j = i + 1; j < genome.size(); j++) {
+                        if (genome.get(j) instanceof AOR) {
+                            String typeJ = ((AOR) genome.get(j)).type;
+                            if (order.indexOf(typeI) < order.indexOf(typeJ)) {
+                                genome.remove(i);
+                                genome.add(editI);
+                                hasChanged = true;
+                                break;
+                            }
+                        }
+                    }
+                    if (hasChanged) break;
+                }
+            }
+        }
     }
 
     private boolean isChildOf(ASTNode a, ASTNode b) {

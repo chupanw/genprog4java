@@ -1,8 +1,15 @@
 package clegoues.genprog4java.mut;
 
+import org.eclipse.core.runtime.NullProgressMonitor;
+import org.eclipse.jdt.core.JavaCore;
+import org.eclipse.jdt.core.ToolFactory;
 import org.eclipse.jdt.core.dom.*;
 import org.eclipse.jdt.core.dom.rewrite.ASTRewrite;
 import org.eclipse.jdt.core.dom.rewrite.ListRewrite;
+import org.eclipse.jdt.core.formatter.CodeFormatter;
+import org.eclipse.jface.text.BadLocationException;
+import org.eclipse.jface.text.Document;
+import org.eclipse.text.edits.TextEdit;
 
 import java.util.*;
 
@@ -27,37 +34,236 @@ public class RewriteFinalizer extends ASTVisitor {
     private HashMap<MethodDeclaration, VariantCallsite> variant2Callsite = new HashMap<>();
     private HashMap<MethodDeclaration, HashSet<MethodDeclaration>> method2Variants = new HashMap<>();
     private HashMap<ASTNode, MethodDeclaration> firstModifiedInVariant = new HashMap<>();
-    private HashSet<ASTNode> pendingChanges = new HashSet<>();
     /**
      * Applicable to all expression level operators
      */
     private HashSet<MethodDeclaration> variantsWithoutRewritingReturn = new HashSet<>();
 
-    private ASTRewrite rewriter;
-    private AST ast;
+    private Document mutatedJavaFile;
+    private CompilationUnit cu = null;
+    private AST ast = null;
 
-    public RewriteFinalizer(ASTRewrite rewriter) {
-        this.rewriter = rewriter;
-        this.ast = rewriter.getAST();
+    public RewriteFinalizer(Document doc) {
+        mutatedJavaFile = doc;
     }
 
+    //////////////////////////////////////////////////////////
+    // Collect information while generating individual edits
+    //////////////////////////////////////////////////////////
+
+    public void markVariantMethod(ASTNode callsite, MethodDeclaration variantMethod, boolean skipRewriteReturn) {
+        MethodDeclaration callsiteMd = getMethodDeclaration(callsite);
+        if (method2Variants.containsKey(callsiteMd)) {
+            method2Variants.get(callsiteMd).add(variantMethod);
+        }
+        else {
+            HashSet<MethodDeclaration> variants = new HashSet<>();
+            variants.add(variantMethod);
+            method2Variants.put(callsiteMd, variants);
+        }
+        if (skipRewriteReturn) {
+            variantsWithoutRewritingReturn.add(variantMethod);
+        }
+    }
+
+    public void checkSpecialStatements(Statement locationNode, Statement fixCodeNode, MethodDeclaration variantMethod, HashMap<ASTNode, List<ASTNode>> nodeStore) {
+        if (!firstModifiedInVariant.containsKey(locationNode)) {
+            firstModifiedInVariant.put(locationNode, variantMethod);
+        }
+        CheckBreakContinueReturnVisitor locationNodeCheck = new CheckBreakContinueReturnVisitor(locationNode);
+        CheckBreakContinueReturnVisitor fixCodeNodeCheck = new CheckBreakContinueReturnVisitor(fixCodeNode);
+        locationNode.accept(locationNodeCheck);
+        if (fixCodeNode != null)
+            fixCodeNode.accept(fixCodeNodeCheck);
+        List<ASTNode> rewriteHistory = nodeStore.get(locationNode);
+        assert(rewriteHistory != null);
+        List<MethodDeclaration> chain = new LinkedList<>();
+        for (ASTNode n : rewriteHistory) {
+            chain.add(getMethodDeclaration(n));
+        }
+        if (locationNodeCheck.hasReturn || fixCodeNodeCheck.hasReturn) {
+            needsReturnCheck.addAll(chain);
+            // todo: this is likely wrong, causing the old error of Closure-1b, but shouldn't matter for IntroClass
+            //  we might need to do something similar to the break check below
+            needsReturnCheckAndFirst.add(chain.get(0));
+        }
+        else if (locationNodeCheck.hasBreak || fixCodeNodeCheck.hasBreak) {
+            MethodDeclaration closestBreakPoint = findClosestCheckPoint(locationNode, true);
+            needsBreakCheck.add(closestBreakPoint);
+        }
+        else if (locationNodeCheck.hasContinue || fixCodeNodeCheck.hasContinue) {
+            MethodDeclaration closestContinuePoint = findClosestCheckPoint(locationNode, false);
+            needsContinueCheck.add(closestContinuePoint);
+        }
+    }
+
+    /**
+     * Go up the hierarchy to find the right point to insert break check
+     *
+     * for (...) {
+     *     if (...) {
+     *         break;
+     *     }
+     * }
+     *
+     * If the if statement is moved into variant1 and the break is moved into variant2,
+     * needsBreakCheck should store variant1 instead of variant2, although variant2 is where the break statement is first modified
+     *
+     * @param locationNode the break in the above example, or any statement can be validly replaced by a break;
+     */
+    private MethodDeclaration findClosestCheckPoint(ASTNode locationNode, boolean shouldConsiderSwitchStmt) {
+        MethodDeclaration res = firstModifiedInVariant.get(locationNode);
+        ASTNode current = locationNode.getParent();
+        while (current != null && !isLoop(current)) {
+            if (shouldConsiderSwitchStmt && isSwitch(current)) {
+                break;
+            }
+            if (firstModifiedInVariant.containsKey(current))
+                res = firstModifiedInVariant.get(current);
+            current = current.getParent();
+        }
+        return res;
+    }
+
+    /**
+     * Record the variant method call site (which is a block) so that we can insert break/continue/return check later
+     * @param locationNode  the appended/deleted/replaced node, not modified here
+     * @param variantMethod variant method to be called
+     * @param callsite  a block with a single method call to this variant method
+     */
+    public void recordVariantCallsite(ASTNode locationNode, MethodDeclaration variantMethod, Block callsite) {
+        boolean isInLoop = isInsideLoop(locationNode.getParent());
+        variant2Callsite.put(variantMethod, new VariantCallsite(callsite, isInLoop));
+    }
+
+    //////////////////////////////////////////////////
+    // Apply individual edits and update states
+    //////////////////////////////////////////////////
+
+    public void applyEditsSoFar(ASTRewrite rewriter) {
+        for (Map.Entry<MethodDeclaration, HashSet<MethodDeclaration>> entry : method2Variants.entrySet()) {
+            MethodDeclaration mutatedMethod = entry.getKey();
+            writeVariantMethods(mutatedMethod, rewriter);
+        }
+    }
+
+    private void writeVariantMethods(MethodDeclaration md, ASTRewrite rewriter) {
+        TypeDeclaration classDecl = getTypeDeclaration(md);
+        for (MethodDeclaration m : method2Variants.get(md)) {
+            ListRewrite lr = rewriter.getListRewrite(classDecl, TypeDeclaration.BODY_DECLARATIONS_PROPERTY);
+            lr.insertLast(m, null);
+        }
+    }
+
+    /**
+     * All the method declarations and call sites stored in the fields need update because object references are
+     * different after applying the edits
+     */
+    private void updateAllFields() {
+        ASTParser parser = ASTParser.newParser(AST.JLS8);
+        parser.setSource(mutatedJavaFile.get().toCharArray());
+        parser.setKind(ASTParser.K_COMPILATION_UNIT);
+        this.cu = (CompilationUnit) parser.createAST(new NullProgressMonitor());
+        this.ast = cu.getAST();
+
+        this.needsBreakCheck = updateHashSet(this.needsBreakCheck);
+        this.needsReturnCheckAndFirst = updateHashSet(this.needsReturnCheckAndFirst);
+        this.needsReturnCheck = updateHashSet(this.needsReturnCheck);
+        this.needsContinueCheck = updateHashSet(this.needsContinueCheck);
+        this.variantsWithoutRewritingReturn = updateHashSet(this.variantsWithoutRewritingReturn);
+        this.variant2Callsite = updateVariant2Callsite(this.variant2Callsite);
+        this.method2Variants = updateMethod2Variants(this.method2Variants);
+    }
+
+    private HashSet<MethodDeclaration> updateHashSet(HashSet<MethodDeclaration> oldSet) {
+        HashSet<MethodDeclaration> res = new HashSet<>();
+        for (MethodDeclaration oldMethod : oldSet) {
+            res.add(getMethodDeclaration(this.cu, oldMethod));
+        }
+        return res;
+    }
+
+    private HashMap<MethodDeclaration, HashSet<MethodDeclaration>> updateMethod2Variants(HashMap<MethodDeclaration, HashSet<MethodDeclaration>> oldHashMap) {
+        HashMap<MethodDeclaration, HashSet<MethodDeclaration>> res = new HashMap<>();
+        for (HashMap.Entry<MethodDeclaration, HashSet<MethodDeclaration>> oldEntry : oldHashMap.entrySet()) {
+            MethodDeclaration oldMutatedMethod = oldEntry.getKey();
+            MethodDeclaration newMutatedMethod = getMethodDeclaration(this.cu, oldMutatedMethod);
+            HashSet<MethodDeclaration> newVariants = new HashSet<>();
+            for (MethodDeclaration oldVariantMethod : oldEntry.getValue()) {
+                MethodDeclaration newVariantMethod = getMethodDeclaration(this.cu, oldVariantMethod);
+                newVariants.add(newVariantMethod);
+            }
+            res.put(newMutatedMethod, newVariants);
+        }
+        return res;
+    }
+
+    private HashMap<MethodDeclaration, VariantCallsite> updateVariant2Callsite(HashMap<MethodDeclaration, VariantCallsite> oldHashMap) {
+        HashMap<MethodDeclaration, VariantCallsite> res = new HashMap<>();
+        for (Map.Entry<MethodDeclaration, VariantCallsite> oldEntry : oldHashMap.entrySet()) {
+            MethodDeclaration oldVariantMethod = oldEntry.getKey();
+            VariantCallsite oldVariantCallsite = oldEntry.getValue();
+            MethodDeclaration newVariantMethod = getMethodDeclaration(this.cu, oldVariantMethod);
+            VariantCallsiteFinder finder = new VariantCallsiteFinder(oldVariantCallsite);
+            this.cu.accept(finder);
+            VariantCallsite newVariantCallsite = finder.getNewVariantCallsite();
+            res.put(newVariantMethod, newVariantCallsite);
+        }
+        return res;
+    }
+
+    private MethodDeclaration getMethodDeclaration(CompilationUnit cu, MethodDeclaration oldMethod) {
+        MethodDeclaration res = null;
+        for (Object o : cu.types()) {
+            TypeDeclaration t = (TypeDeclaration) o;
+            res = getMethodDeclaration(t, oldMethod);
+            if (res != null) return res;
+        }
+        throw new RuntimeException("MethodDeclaration not found: " + oldMethod.getName().getIdentifier());
+    }
+
+    private MethodDeclaration getMethodDeclaration(TypeDeclaration td, MethodDeclaration thatMethod) {
+        for (Object o : td.getMethods()) {
+            MethodDeclaration thisMethod = (MethodDeclaration) o;
+            if (thisMethod.getName().getIdentifier().equals(thatMethod.getName().getIdentifier())
+                    && thisMethod.parameters().size() == thatMethod.parameters().size()) {
+                boolean parameterMatch = true;
+                for (int i = 0; i < thatMethod.parameters().size(); i++) {
+                    SingleVariableDeclaration thisParameter = (SingleVariableDeclaration) thisMethod.parameters().get(i);
+                    SingleVariableDeclaration thatParameter = (SingleVariableDeclaration) thatMethod.parameters().get(i);
+                    if (!thisParameter.getType().toString().equals(thatParameter.getType().toString()) || !thisParameter.getName().getIdentifier().equals(thatParameter.getName().getIdentifier())) {
+                        parameterMatch = false;
+                        break;
+                    }
+                }
+                if (parameterMatch) {
+                    return thisMethod;
+                }
+            }
+        }
+        return null;
+    }
+
+    ///////////////////////////////////////////////////////////////////
+    // Finalize the transformation by creating and initializing fields
+    ///////////////////////////////////////////////////////////////////
+
     public void finalizeEdits() {
+        updateAllFields();
         for (HashMap.Entry<MethodDeclaration, HashSet<MethodDeclaration>> entry : method2Variants.entrySet()) {
             MethodDeclaration mutatedMethod = entry.getKey();
 
             addSynchronized(mutatedMethod);
-
-            writeVariantMethods(mutatedMethod);
 
             VarNamesCollector collector = new VarNamesCollector(mutatedMethod);
             collectVariableNames(collector, mutatedMethod);
 
             writeFieldsToClass(mutatedMethod, collector);
 
-            VarToFieldVisitor var2field = new VarToFieldVisitor(collector, rewriter);
+            VarToFieldVisitor var2field = new VarToFieldVisitor(collector);
             changeVars2Fields(mutatedMethod, collector, var2field);
 
-            FieldInitVisitor fiv = new FieldInitVisitor(collector, rewriter, var2field);
+            FieldInitVisitor fiv = new FieldInitVisitor(collector, this.ast);
             initFields(fiv, mutatedMethod);
 
             storeAndRestoreStates(collector, mutatedMethod);
@@ -68,10 +274,23 @@ public class RewriteFinalizer extends ASTVisitor {
 
             addChecksToVariantCallSites(mutatedMethod, collector);
         }
+        updateDoc();
+    }
+
+    private void updateDoc() {
+        String code = this.cu.toString();
+        CodeFormatter formatter = ToolFactory.createCodeFormatter(JavaCore.getOptions());
+        TextEdit edit = formatter.format(CodeFormatter.K_COMPILATION_UNIT, code, 0, code.length(), 0, null);
+        try {
+            this.mutatedJavaFile.set(code);
+            edit.apply(this.mutatedJavaFile);
+        } catch (BadLocationException e) {
+            e.printStackTrace();
+        }
     }
 
     private void storeAndRestoreStates(VarNamesCollector collector, MethodDeclaration mutatedMethod) {
-        StoreStateBeforeMethodCallVisitor stateRestoreVisitor = new StoreStateBeforeMethodCallVisitor(collector, rewriter, mutatedMethod);
+        StoreStateBeforeMethodCallVisitor stateRestoreVisitor = new StoreStateBeforeMethodCallVisitor(collector, mutatedMethod, this.ast);
         stateRestoreVisitor.writeStoreAndRestoreToClass();
 
         mutatedMethod.accept(stateRestoreVisitor);
@@ -97,7 +316,6 @@ public class RewriteFinalizer extends ASTVisitor {
 
     private void initBreakContinueReturnFields(MethodDeclaration mutatedMethod, VarNamesCollector collector) {
         for (MethodDeclaration m : method2Variants.get(mutatedMethod)) {
-            ListRewrite lsr = rewriter.getListRewrite(m.getBody(), Block.STATEMENTS_PROPERTY);
             if (needsBreakCheck.contains(m)) {
 //                FieldAccess fa = ast.newFieldAccess();
 //                fa.setExpression(ast.newThisExpression());
@@ -106,7 +324,7 @@ public class RewriteFinalizer extends ASTVisitor {
                 assign.setLeftHandSide(fa);
                 assign.setRightHandSide(ast.newBooleanLiteral(false));
                 ExpressionStatement assignStmt = ast.newExpressionStatement(assign);
-                lsr.insertFirst(assignStmt, null);
+                m.getBody().statements().add(0, assignStmt);
             }
             if (needsContinueCheck.contains(m)) {
 //                FieldAccess fa = ast.newFieldAccess();
@@ -116,7 +334,7 @@ public class RewriteFinalizer extends ASTVisitor {
                 assign.setLeftHandSide(fa);
                 assign.setRightHandSide(ast.newBooleanLiteral(false));
                 ExpressionStatement assignStmt = ast.newExpressionStatement(assign);
-                lsr.insertFirst(assignStmt, null);
+                m.getBody().statements().add(0, assignStmt);
             }
             if (needsReturnCheck.contains(m)) {
 //                FieldAccess fa = ast.newFieldAccess();
@@ -126,7 +344,7 @@ public class RewriteFinalizer extends ASTVisitor {
                 assign.setLeftHandSide(fa);
                 assign.setRightHandSide(ast.newBooleanLiteral(false));
                 ExpressionStatement assignStmt = ast.newExpressionStatement(assign);
-                lsr.insertFirst(assignStmt, null);
+                m.getBody().statements().add(0, assignStmt);
             }
         }
     }
@@ -136,8 +354,6 @@ public class RewriteFinalizer extends ASTVisitor {
             if (needsBreakCheck.contains(m) && variant2Callsite.get(m).isInsideLoop) {
                 Block b = variant2Callsite.get(m).block;
                 IfStatement ifStmt = ast.newIfStatement();
-//                FieldAccess fa = ast.newFieldAccess();
-//                fa.setExpression(ast.newThisExpression());
                 SimpleName fa = ast.newSimpleName(collector.hasBreakFieldName);
                 ifStmt.setExpression(fa);
 
@@ -156,8 +372,6 @@ public class RewriteFinalizer extends ASTVisitor {
             if (needsContinueCheck.contains(m) && variant2Callsite.get(m).isInsideLoop) {
                 Block b = variant2Callsite.get(m).block;
                 IfStatement ifStmt = ast.newIfStatement();
-//                FieldAccess fa = ast.newFieldAccess();
-//                fa.setExpression(ast.newThisExpression());
                 SimpleName fa = ast.newSimpleName(collector.hasContinueFieldName);
                 ifStmt.setExpression(fa);
 
@@ -176,14 +390,10 @@ public class RewriteFinalizer extends ASTVisitor {
             if (needsReturnCheck.contains(m)) {
                 Block b = variant2Callsite.get(m).block;
                 IfStatement ifStmt = ast.newIfStatement();
-//                FieldAccess fa = ast.newFieldAccess();
-//                fa.setExpression(ast.newThisExpression());
                 SimpleName fa = ast.newSimpleName(collector.hasReturnFieldName);
                 ifStmt.setExpression(fa);
                 ReturnStatement retStmt = ast.newReturnStatement();
                 if (needsReturnCheckAndFirst.contains(m) && hasReturnValue(mutatedMethod)) {
-//                    FieldAccess retValFA = ast.newFieldAccess();
-//                    retValFA.setExpression(ast.newThisExpression());
                     SimpleName retValFA = ast.newSimpleName(collector.returnValueFieldName);
                     retStmt.setExpression(retValFA);
                 }
@@ -194,12 +404,13 @@ public class RewriteFinalizer extends ASTVisitor {
     }
 
     private void rewriteBreakContinueReturnInVariantMethods(MethodDeclaration md, VarNamesCollector collector, VarToFieldVisitor var2field) {
-        VariantBreakContinueReturnVisitor v = new VariantBreakContinueReturnVisitor(collector, rewriter, var2field, pendingChanges);
+        VariantBreakContinueReturnVisitor v = new VariantBreakContinueReturnVisitor(collector, this.ast);
         for (MethodDeclaration m : method2Variants.get(md)) {
             if (!variantsWithoutRewritingReturn.contains(m)) {
                 m.accept(v);
             }
         }
+        v.applyEdits();
     }
 
     private void changeVars2Fields(MethodDeclaration md, VarNamesCollector collector, VarToFieldVisitor v) {
@@ -211,85 +422,20 @@ public class RewriteFinalizer extends ASTVisitor {
 
     private void addSynchronized(MethodDeclaration md) {
         if (!md.isConstructor()) {
-            ListRewrite lr = rewriter.getListRewrite(md, MethodDeclaration.MODIFIERS2_PROPERTY);
-            lr.insertLast(ast.newModifier(Modifier.ModifierKeyword.SYNCHRONIZED_KEYWORD), null);
+            md.modifiers().add(ast.newModifier(Modifier.ModifierKeyword.SYNCHRONIZED_KEYWORD));
         }
     }
 
-    private void writeVariantMethods(MethodDeclaration md) {
-        TypeDeclaration classDecl = getTypeDeclaration(md);
-        for (MethodDeclaration m : method2Variants.get(md)) {
-            ListRewrite lr = rewriter.getListRewrite(classDecl, TypeDeclaration.BODY_DECLARATIONS_PROPERTY);
-            lr.insertLast(m, null);
-        }
-    }
 
-    /**
-     * Mark that a node will be replaced later by some other variants, so that we can avoid mutating it. Otherwise,
-     * some variant methods might get silenced.
-     */
-    public void markPendingChange(ASTNode n) {
-        pendingChanges.add(n);
-    }
+//    /**
+//     * Mark that a node will be replaced later by some other variants, so that we can avoid mutating it. Otherwise,
+//     * some variant methods might get silenced.
+//     */
+//    public void markPendingChange(ASTNode n) {
+//        pendingChanges.add(n);
+//    }
 
-    public void checkSpecialStatements(Statement locationNode, Statement fixCodeNode, MethodDeclaration variantMethod, HashMap<ASTNode, List<ASTNode>> nodeStore) {
-        if (!firstModifiedInVariant.containsKey(locationNode)) {
-            firstModifiedInVariant.put(locationNode, variantMethod);
-        }
-        CheckBreakContinueReturnVisitor locationNodeCheck = new CheckBreakContinueReturnVisitor(locationNode);
-        CheckBreakContinueReturnVisitor fixCodeNodeCheck = new CheckBreakContinueReturnVisitor(fixCodeNode);
-        locationNode.accept(locationNodeCheck);
-        if (fixCodeNode != null)
-            fixCodeNode.accept(fixCodeNodeCheck);
-        List<ASTNode> rewriteHistory = nodeStore.get(locationNode);
-        assert(rewriteHistory != null);
-        List<MethodDeclaration> chain = new LinkedList<>();
-        for (ASTNode n : rewriteHistory) {
-            chain.add(getMethodDeclaration(n));
-        }
-        if (locationNodeCheck.hasReturn || fixCodeNodeCheck.hasReturn) {
-            needsReturnCheck.addAll(chain);
-            // todo: this is likely wrong, causing the old error of Closure-1b, but shouldn't matter for IntroClass
-            //  we might need to do something similar to the break check below
-            needsReturnCheckAndFirst.add(chain.get(0));
-        }
-        else if (locationNodeCheck.hasBreak || fixCodeNodeCheck.hasBreak) {
-            MethodDeclaration closestBreakPoint = findCloeseCheckPoint(locationNode, true);
-            needsBreakCheck.add(closestBreakPoint);
-        }
-        else if (locationNodeCheck.hasContinue || fixCodeNodeCheck.hasContinue) {
-            MethodDeclaration closestContinuePoint = findCloeseCheckPoint(locationNode, false);
-            needsContinueCheck.add(closestContinuePoint);
-        }
-    }
 
-    /**
-     * Go up the hierarchy to find the right point to insert break check
-     *
-     * for (...) {
-     *     if (...) {
-     *         break;
-     *     }
-     * }
-     *
-     * If the if statement is moved into variant1 and the break is moved into variant2,
-     * needsBreakCheck should store variant1 instead of variant2, although variant2 is where the break statement is first modified
-     *
-     * @param locationNode the break in the above example, or any statement can be validly replaced by a break;
-     */
-    private MethodDeclaration findCloeseCheckPoint(ASTNode locationNode, boolean shouldConsiderSwitchStmt) {
-        MethodDeclaration res = firstModifiedInVariant.get(locationNode);
-        ASTNode current = locationNode.getParent();
-        while (current != null && !isLoop(current)) {
-            if (shouldConsiderSwitchStmt && isSwitch(current)) {
-                break;
-            }
-            if (firstModifiedInVariant.containsKey(current))
-                res = firstModifiedInVariant.get(current);
-            current = current.getParent();
-        }
-        return res;
-    }
 
     public static boolean isLoop(ASTNode n) {
         return n instanceof WhileStatement || n instanceof ForStatement || n instanceof EnhancedForStatement || n instanceof DoStatement;
@@ -299,16 +445,6 @@ public class RewriteFinalizer extends ASTVisitor {
         return n instanceof SwitchStatement;
     }
 
-    /**
-     * Record the variant method call site (which is a block) so that we can insert break/continue/return check later
-     * @param locationNode  the appended/deleted/replaced node, not modified here
-     * @param variantMethod variant method to be called
-     * @param callsite  a block with a single method call to this variant method
-     */
-    public void recordVariantCallsite(ASTNode locationNode, MethodDeclaration variantMethod, Block callsite) {
-        boolean isInLoop = isInsideLoop(locationNode.getParent());
-        variant2Callsite.put(variantMethod, new VariantCallsite(callsite, isInLoop));
-    }
 
     public static TypeDeclaration getTypeDeclaration(ASTNode n) {
         if (n != null) {
@@ -378,42 +514,27 @@ public class RewriteFinalizer extends ASTVisitor {
         }
     }
 
-    public void markVariantMethod(ASTNode callsite, MethodDeclaration variantMethod, boolean skipRewriteReturn) {
-        MethodDeclaration callsiteMd = getMethodDeclaration(callsite);
-        if (method2Variants.containsKey(callsiteMd)) {
-            method2Variants.get(callsiteMd).add(variantMethod);
-        }
-        else {
-            HashSet<MethodDeclaration> variants = new HashSet<>();
-            variants.add(variantMethod);
-            method2Variants.put(callsiteMd, variants);
-        }
-        if (skipRewriteReturn) {
-            variantsWithoutRewritingReturn.add(variantMethod);
-        }
-    }
 
     private void writeFieldsToClass(MethodDeclaration md, VarNamesCollector collector) {
         TypeDeclaration classDecl = getTypeDeclaration(md);
-        ListRewrite lr = rewriter.getListRewrite(classDecl, TypeDeclaration.BODY_DECLARATIONS_PROPERTY);
         for (MyParameter p : collector.parameters) {
             FieldDeclaration fd = genField(p.getType(), collector.varNames.get(p.getName().getIdentifier()));
-            lr.insertLast(fd, null);
+            classDecl.bodyDeclarations().add(fd);
         }
         for (MyParameter p : collector.localVariables) {
             FieldDeclaration fd = genField(p.getType(), collector.varNames.get(p.getName().getIdentifier()));
-            lr.insertLast(fd, null);
+            classDecl.bodyDeclarations().add(fd);
         }
         // additional fields for keeping the states of looping
         FieldDeclaration hasBreak = genField(ast.newPrimitiveType(PrimitiveType.BOOLEAN), collector.hasBreakFieldName);
-        lr.insertLast(hasBreak, null);
+        classDecl.bodyDeclarations().add(hasBreak);
         FieldDeclaration hasReturn = genField(ast.newPrimitiveType(PrimitiveType.BOOLEAN), collector.hasReturnFieldName);
-        lr.insertLast(hasReturn, null);
+        classDecl.bodyDeclarations().add(hasReturn);
         FieldDeclaration hasContinue = genField(ast.newPrimitiveType(PrimitiveType.BOOLEAN), collector.hasContinueFieldName);
-        lr.insertLast(hasContinue, null);
+        classDecl.bodyDeclarations().add(hasContinue);
         if (hasReturnValue(md)) {
             FieldDeclaration returnValue = genField(md.getReturnType2(), collector.returnValueFieldName);
-            lr.insertLast(returnValue, null);
+            classDecl.bodyDeclarations().add(returnValue);
         }
     }
 
@@ -522,13 +643,9 @@ class VarNamesCollector extends ASTVisitor {
 
 class VarToFieldVisitor extends ASTVisitor {
     VarNamesCollector collector;
-    ASTRewrite rewriter;
-    AST ast;
 
-    VarToFieldVisitor(VarNamesCollector collector, ASTRewrite rewriter) {
+    VarToFieldVisitor(VarNamesCollector collector) {
         this.collector = collector;
-        this.rewriter = rewriter;
-        this.ast = rewriter.getAST();
     }
 
     @Override
@@ -542,8 +659,7 @@ class VarToFieldVisitor extends ASTVisitor {
         if (isMethodName(node))
             return false;
         if (collector.varNames.containsKey(node.getIdentifier()) && !node.isDeclaration()) {
-            SimpleName newName = ast.newSimpleName(collector.varNames.get(node.getIdentifier()));
-            rewriter.replace(node, newName, null);
+            node.setIdentifier(collector.varNames.get(node.getIdentifier()));
         }
         return false;
     }
@@ -588,32 +704,25 @@ class VarToFieldVisitor extends ASTVisitor {
 
 class FieldInitVisitor extends ASTVisitor {
     VarNamesCollector collector;
-    ASTRewrite rewriter;
     AST ast;
-    VarToFieldVisitor var2field;
 
-    FieldInitVisitor(VarNamesCollector collector, ASTRewrite rewriter, VarToFieldVisitor var2field) {
+    FieldInitVisitor(VarNamesCollector collector, AST ast) {
         this.collector = collector;
-        this.rewriter = rewriter;
-        this.ast = rewriter.getAST();
-        this.var2field = var2field;
+        this.ast = ast;
     }
 
     public void initParameterFields() {
-        ListRewrite lsr = rewriter.getListRewrite(collector.md.getBody(), Block.STATEMENTS_PROPERTY);
         for (MyParameter p : collector.parameters) {
             Assignment assign = ast.newAssignment();
-//            FieldAccess fa = ast.newFieldAccess();
-//            fa.setExpression(ast.newThisExpression());
             SimpleName fa = ast.newSimpleName(collector.varNames.get(p.getName().getIdentifier()));
             assign.setLeftHandSide(fa);
             assign.setRightHandSide(p.getName());
             ExpressionStatement assignStmt = ast.newExpressionStatement(assign);
             if (collector.md.isConstructor() && collector.md.getBody().statements().get(0) instanceof SuperConstructorInvocation) {
-                lsr.insertAt(assignStmt, 1, null);
+                collector.md.getBody().statements().add(1, assignStmt);
             }
             else {
-                lsr.insertFirst(assignStmt, null);
+                collector.md.getBody().statements().add(0, assignStmt);
             }
         }
     }
@@ -625,14 +734,11 @@ class FieldInitVisitor extends ASTVisitor {
             if (node.getLocationInParent() == EnhancedForStatement.PARAMETER_PROPERTY) {
                 EnhancedForStatement parent = (EnhancedForStatement) node.getParent();
                 Assignment assign = ast.newAssignment();
-//                FieldAccess fa = ast.newFieldAccess();
-//                fa.setExpression(ast.newThisExpression());
                 SimpleName fa = ast.newSimpleName(collector.varNames.get(name));
                 assign.setLeftHandSide(fa);
                 assign.setRightHandSide(ast.newSimpleName(name));
                 ExpressionStatement assignStmt = ast.newExpressionStatement(assign);
-                ListRewrite lsr = rewriter.getListRewrite(parent.getBody(), Block.STATEMENTS_PROPERTY);
-                lsr.insertFirst(assignStmt, null);
+                ((Block) parent.getBody()).statements().add(0, assignStmt);
             }
             else if (node.getLocationInParent() == MethodDeclaration.PARAMETERS_PROPERTY) {
                 return false;
@@ -654,23 +760,18 @@ class FieldInitVisitor extends ASTVisitor {
             Expression initializer = (Expression) ASTNode.copySubtree(ast, f.getInitializer());
             if (initializer != null && collector.varNames.containsKey(f.getName().getIdentifier())) {
                 Assignment assign = ast.newAssignment();
-//                FieldAccess fa = ast.newFieldAccess();
-//                fa.setExpression(ast.newThisExpression());
                 SimpleName fa = ast.newSimpleName(collector.varNames.get(f.getName().getIdentifier()));
                 assign.setLeftHandSide(fa);
                 assign.setRightHandSide(initializer);
                 ExpressionStatement assignStmt = ast.newExpressionStatement(assign);
-                assignStmt.accept(var2field);
                 assignments.add(assignStmt);
             }
         }
-        if (assignments.size() > 1) {
-            Block block = ast.newBlock();
-            block.statements().addAll(assignments);
-            rewriter.replace(node, block, null);
-        }
-        else if (assignments.size() == 1){
-            rewriter.replace(node, assignments.get(0), null);
+        Block block = (Block) node.getParent();
+        int baseIndex = block.statements().indexOf(node);
+        block.statements().remove(baseIndex);
+        for (int i = 0; i < assignments.size(); i++) {
+            block.statements().add(baseIndex + i, assignments.get(i));
         }
         return false;
     }
@@ -678,24 +779,21 @@ class FieldInitVisitor extends ASTVisitor {
     @Override
     public boolean visit(VariableDeclarationExpression node) {
         if (node.getParent() instanceof ForStatement) {
+            ForStatement forStatement = (ForStatement) node.getParent();
             List<Assignment> assignments = new LinkedList<>();
             for (VariableDeclarationFragment f : (List<VariableDeclarationFragment>) node.fragments()) {
                 Expression initializer = (Expression) ASTNode.copySubtree(ast, f.getInitializer());
                 if (initializer != null && collector.varNames.containsKey(f.getName().getIdentifier())) {
                     Assignment assign = ast.newAssignment();
-//                    FieldAccess fa = ast.newFieldAccess();
-//                    fa.setExpression(ast.newThisExpression());
                     SimpleName fa = ast.newSimpleName(collector.varNames.get(f.getName().getIdentifier()));
                     assign.setLeftHandSide(fa);
                     assign.setRightHandSide(initializer);
-                    assign.accept(var2field);
                     assignments.add(assign);
                 }
             }
-            ListRewrite lsr = rewriter.getListRewrite(node.getParent(), ForStatement.INITIALIZERS_PROPERTY);
-            lsr.remove(node, null);
+            forStatement.initializers().remove(node);
             for (Assignment assign : assignments) {
-                lsr.insertLast(assign, null);
+                forStatement.initializers().add(assign);
             }
         }
         else {
@@ -707,29 +805,19 @@ class FieldInitVisitor extends ASTVisitor {
 
 class VariantBreakContinueReturnVisitor extends ASTVisitor {
     VarNamesCollector collector;
-    ASTRewrite rewriter;
-    VarToFieldVisitor var2field;
     AST ast;
-    HashSet<ASTNode> pendingChanges;
+    LinkedList<Edit> edits = new LinkedList<>();
 
-    public VariantBreakContinueReturnVisitor(VarNamesCollector collector, ASTRewrite rewriter, VarToFieldVisitor var2field, HashSet<ASTNode> pendingChanges) {
+    public VariantBreakContinueReturnVisitor(VarNamesCollector collector, AST ast) {
         this.collector = collector;
-        this.rewriter = rewriter;
-        this.var2field = var2field;
-        this.pendingChanges = pendingChanges;
-        ast = rewriter.getAST();
+        this.ast = ast;
     }
 
     @Override
     public boolean visit(BreakStatement node) {
         if (!isPartOfSwitchStatement(node)) {
-            if (pendingChanges.contains(node)) {
-                return false;
-            }
             Block b = ast.newBlock();
             Assignment assign = ast.newAssignment();
-//            FieldAccess fa = ast.newFieldAccess();
-//            fa.setExpression(ast.newThisExpression());
             SimpleName fa = ast.newSimpleName(collector.hasBreakFieldName);
             assign.setLeftHandSide(fa);
             assign.setRightHandSide(ast.newBooleanLiteral(true));
@@ -737,20 +825,20 @@ class VariantBreakContinueReturnVisitor extends ASTVisitor {
             b.statements().add(assignStmt);
             b.statements().add(ast.newReturnStatement());
 
-            rewriter.replace(node, b, null);
+            StructuralPropertyDescriptor property = node.getLocationInParent();
+            if (property instanceof ChildListPropertyDescriptor) {
+                storeEdit((Block) node.getParent(), node, b);
+            } else {
+                node.getParent().setStructuralProperty(property, b);
+            }
         }
         return false;
     }
 
     @Override
     public boolean visit(ContinueStatement node) {
-        if (pendingChanges.contains(node)) {
-            return false;
-        }
         Block b = ast.newBlock();
         Assignment assign = ast.newAssignment();
-//        FieldAccess fa = ast.newFieldAccess();
-//        fa.setExpression(ast.newThisExpression());
         SimpleName fa = ast.newSimpleName(collector.hasContinueFieldName);
         assign.setLeftHandSide(fa);
         assign.setRightHandSide(ast.newBooleanLiteral(true));
@@ -758,19 +846,19 @@ class VariantBreakContinueReturnVisitor extends ASTVisitor {
         b.statements().add(assignStmt);
         b.statements().add(ast.newReturnStatement());
 
-        rewriter.replace(node, b, null);
+        StructuralPropertyDescriptor property = node.getLocationInParent();
+        if (property instanceof ChildListPropertyDescriptor) {
+            storeEdit((Block) node.getParent(), node, b);
+        } else {
+            node.getParent().setStructuralProperty(property, b);
+        }
         return false;
     }
 
     @Override
     public boolean visit(ReturnStatement node) {
-        if (pendingChanges.contains(node)) {
-            return false;
-        }
         Block b = ast.newBlock();
         Assignment assign = ast.newAssignment();
-//        FieldAccess fa = ast.newFieldAccess();
-//        fa.setExpression(ast.newThisExpression());
         SimpleName fa = ast.newSimpleName(collector.hasReturnFieldName);
         assign.setLeftHandSide(fa);
         assign.setRightHandSide(ast.newBooleanLiteral(true));
@@ -778,19 +866,21 @@ class VariantBreakContinueReturnVisitor extends ASTVisitor {
         b.statements().add(assignStmt);
         if (node.getExpression() != null) {
             Assignment retValAssign = ast.newAssignment();
-//            FieldAccess retValFA = ast.newFieldAccess();
-//            retValFA.setExpression(ast.newThisExpression());
             SimpleName retValFA = ast.newSimpleName(collector.returnValueFieldName);
             retValAssign.setLeftHandSide(retValFA);
             Expression retVal = (Expression) ASTNode.copySubtree(ast, node.getExpression());
             retValAssign.setRightHandSide(retVal);
             ExpressionStatement assignStmt2 = ast.newExpressionStatement(retValAssign);
-            assignStmt2.accept(var2field);
             b.statements().add(assignStmt2);
         }
         b.statements().add(ast.newReturnStatement());
 
-        rewriter.replace(node, b, null);
+        StructuralPropertyDescriptor property = node.getLocationInParent();
+        if (property instanceof ChildListPropertyDescriptor) {
+            storeEdit((Block) node.getParent(), node, b);
+        } else {
+            node.getParent().setStructuralProperty(property, b);
+        }
         return false;
     }
 
@@ -803,6 +893,30 @@ class VariantBreakContinueReturnVisitor extends ASTVisitor {
         }
         else {
             return false;
+        }
+    }
+
+    private void storeEdit(Block b, ASTNode oldNode, ASTNode newNode) {
+        Edit e = new Edit(b, oldNode, newNode);
+        edits.add(e);
+    }
+
+    public void applyEdits() {
+        for (Edit e : edits) {
+            int index = e.block.statements().indexOf(e.oldNode);
+            e.block.statements().remove(e.oldNode);
+            e.block.statements().add(index, e.newNode);
+        }
+    }
+
+    class Edit {
+        Block block;
+        ASTNode oldNode;
+        ASTNode newNode;
+        Edit(Block b, ASTNode oldNode, ASTNode newNode) {
+            this.block = b;
+            this.oldNode = oldNode;
+            this.newNode = newNode;
         }
     }
 }
@@ -891,7 +1005,6 @@ class CheckBreakContinueReturnVisitor extends ASTVisitor {
 class StoreStateBeforeMethodCallVisitor extends ASTVisitor {
     VarNamesCollector collector;
     String id;  // we need different IDs for different mutated methods
-    ASTRewrite rewriter;
     TypeDeclaration mutatedClass;
 
     HashSet<String> localMethodNames;
@@ -899,13 +1012,12 @@ class StoreStateBeforeMethodCallVisitor extends ASTVisitor {
     AST ast;
     HashSet<ASTNode> cache;
 
-    StoreStateBeforeMethodCallVisitor(VarNamesCollector collector, ASTRewrite rewriter, MethodDeclaration mutatedMethod) {
+    StoreStateBeforeMethodCallVisitor(VarNamesCollector collector, MethodDeclaration mutatedMethod, AST ast) {
         this.collector = collector;
-        this.rewriter = rewriter;
         this.mutatedClass = RewriteFinalizer.getTypeDeclaration(mutatedMethod);
 
         cache = new HashSet<>();
-        this.ast = rewriter.getAST();
+        this.ast = ast;
         this.id = UUID.randomUUID().toString().replace('-', '_');
         sortedVariables = new LinkedList<>();
         sortedVariables.addAll(collector.localVariables);
@@ -913,12 +1025,13 @@ class StoreStateBeforeMethodCallVisitor extends ASTVisitor {
         sortedVariables.sort((a, b) -> a.getName().getIdentifier().compareTo(b.getName().getIdentifier()));
         localMethodNames = new HashSet<>();
         for (MethodDeclaration m : mutatedClass.getMethods()) {
-            localMethodNames.add(m.getName().getIdentifier());
+            if (!m.getName().getIdentifier().startsWith("variant")) {
+                localMethodNames.add(m.getName().getIdentifier());
+            }
         }
     }
 
     public void writeStoreAndRestoreToClass() {
-        ListRewrite lsr = rewriter.getListRewrite(mutatedClass, TypeDeclaration.BODY_DECLARATIONS_PROPERTY);
 
         // stack field
         ClassInstanceCreation cic = ast.newClassInstanceCreation();
@@ -928,7 +1041,7 @@ class StoreStateBeforeMethodCallVisitor extends ASTVisitor {
         vdf.setInitializer(cic);
         FieldDeclaration stackField = ast.newFieldDeclaration(vdf);
         stackField.setType(ast.newSimpleType(ast.newName("java.util.Stack")));
-        lsr.insertLast(stackField, null);
+        mutatedClass.bodyDeclarations().add(stackField);
 
         // store method
         MethodDeclaration storeMethod = ast.newMethodDeclaration();
@@ -944,7 +1057,7 @@ class StoreStateBeforeMethodCallVisitor extends ASTVisitor {
             mi.arguments().add(ast.newSimpleName(f));
             storeBody.statements().add(ast.newExpressionStatement(mi));
         }
-        lsr.insertLast(storeMethod, null);
+        mutatedClass.bodyDeclarations().add(storeMethod);
 
         // restore method
         MethodDeclaration restoreMethod = ast.newMethodDeclaration();
@@ -965,7 +1078,7 @@ class StoreStateBeforeMethodCallVisitor extends ASTVisitor {
             assign.setRightHandSide(cast);
             restoreBody.statements().add(ast.newExpressionStatement(assign));
         }
-        lsr.insertLast(restoreMethod, null);
+        mutatedClass.bodyDeclarations().add(restoreMethod);
     }
 
     public Type convertPrimitive(Type t, AST ast) {
@@ -1023,7 +1136,7 @@ class StoreStateBeforeMethodCallVisitor extends ASTVisitor {
         Block closestBlock = RewriteFinalizer.getBlock(node);
         Statement originalStmt = RewriteFinalizer.getStatement(node);
         if (originalStmt.getParent() != closestBlock) {
-            System.err.println("[DEBUG] failed to store/restore state, potentially unsafe for recursive calls");
+            System.err.println("[DEBUG] method call not inside block, failed to store/restore state, potentially unsafe for recursive calls");
         }
         else {
             if (!cache.contains(originalStmt)) {
@@ -1034,9 +1147,9 @@ class StoreStateBeforeMethodCallVisitor extends ASTVisitor {
                 MethodInvocation restore = ast.newMethodInvocation();
                 restore.setName(ast.newSimpleName("restore_" + id));
                 Statement restoreStmt = ast.newExpressionStatement(restore);
-                ListRewrite lsr = rewriter.getListRewrite(closestBlock, Block.STATEMENTS_PROPERTY);
-                lsr.insertBefore(storeStmt, originalStmt, null);
-                lsr.insertAfter(restoreStmt, originalStmt, null);
+                int originalStmtIndex = closestBlock.statements().indexOf(originalStmt);
+                closestBlock.statements().add(originalStmtIndex, storeStmt);
+                closestBlock.statements().add(originalStmtIndex + 2, restoreStmt);
             }
         }
     }
@@ -1052,5 +1165,28 @@ class VariantCallsite {
     VariantCallsite(Block b, boolean isInLoop) {
         this.block = b;
         this.isInsideLoop = isInLoop;
+    }
+}
+
+class VariantCallsiteFinder extends ASTVisitor {
+    private VariantCallsite oldCallsite;
+    private Block newCallsite = null;
+    VariantCallsiteFinder(VariantCallsite old) {
+        this.oldCallsite = old;
+    }
+    @Override
+    public boolean visit(Block node) {
+        if (node.toString().equals(oldCallsite.block.toString())) {
+            newCallsite = node;
+            return false;
+        }
+        return true;
+    }
+    public VariantCallsite getNewVariantCallsite() {
+        if (newCallsite == null)
+            throw new RuntimeException("Couldn't find matching callsite for " + oldCallsite.block.toString());
+        else {
+            return new VariantCallsite(newCallsite, oldCallsite.isInsideLoop);
+        }
     }
 }

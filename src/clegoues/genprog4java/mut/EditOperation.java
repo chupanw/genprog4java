@@ -102,8 +102,6 @@ public interface EditOperation<R> {
 			toBeReplaced = l.get(l.size() - 1);
 		}
 		rewriter.replace(toBeReplaced, astReplacement, null);
-		if (finalizer != null)
-			finalizer.markPendingChange(toBeReplaced);
 
 		updateNodeStore(nodeStore, originalLocationNode, newLocationNode);
 		ArrayList<ASTNode> originChildren = getChildrenStatementsOrExpressions(originalLocationNode);
