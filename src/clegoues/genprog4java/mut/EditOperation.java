@@ -135,8 +135,8 @@ public interface EditOperation<R> {
 				for (ASTNode n : (List<ASTNode>) child) {
 					if (n instanceof Statement || n instanceof Expression) {
 						res.add(n);
-						res.addAll(getChildrenStatementsOrExpressions(n));
 					}
+					res.addAll(getChildrenStatementsOrExpressions(n));
 				}
 			} else if (child instanceof Statement || child instanceof Expression) {
 				res.add((ASTNode) child);
