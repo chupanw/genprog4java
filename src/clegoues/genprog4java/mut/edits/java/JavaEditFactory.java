@@ -510,9 +510,12 @@ public class JavaEditFactory {
 			}
 			return false;
 		case REPLACE: 
-		case SWAP: 
-			return locationStmt.canBeDeleted() && this.editSources(variant, location,  editType).size() > 0;
-		case DELETE: 			
+		case SWAP:
+			// The first check removes cases where there is only one return, but replacing such a return should be possible,
+			// for example, by replacing with another return. Math-22b requires such a change.
+//			return locationStmt.canBeDeleted() && this.editSources(variant, location,  editType).size() > 0;
+			return this.editSources(variant, location, editType).size() > 0;
+		case DELETE:
 			return locationStmt.canBeDeleted();
 		case OFFBYONE:  
 		case UBOUNDSET:
