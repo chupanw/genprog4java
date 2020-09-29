@@ -271,6 +271,7 @@ public class RewriteFinalizer extends ASTVisitor {
             MethodDeclaration mutatedMethod = entry.getKey();
 
             addSynchronized(mutatedMethod);
+            removeFinal();
 
             VarNamesCollector collector = new VarNamesCollector(mutatedMethod);
             collectVariableNames(collector, mutatedMethod);
@@ -447,6 +448,25 @@ public class RewriteFinalizer extends ASTVisitor {
     private void addSynchronized(MethodDeclaration md) {
         if (!md.isConstructor()) {
             md.modifiers().add(ast.newModifier(Modifier.ModifierKeyword.SYNCHRONIZED_KEYWORD));
+        }
+    }
+
+    /**
+     * Current mutation group extraction does not consider alternative changes to the same final field as conflicting
+     */
+    private void removeFinal() {
+        for (Object ot : this.cu.types()) {
+            TypeDeclaration t = (TypeDeclaration) ot;
+            for (FieldDeclaration f : t.getFields()) {
+                int idx = -1;
+                for (int i = 0; i < f.modifiers().size(); i++) {
+                    if (((Modifier) f.modifiers().get(i)).isFinal()) {
+                        idx = i;
+                    }
+                }
+                if (idx != -1)
+                    f.modifiers().remove(idx);
+            }
         }
     }
 
