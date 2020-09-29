@@ -29,7 +29,7 @@ import java.util.*;
 public class RewriteFinalizer extends ASTVisitor {
 
     private HashSet<MethodDeclaration> needsReturnCheck = new HashSet<>();
-    private HashSet<MethodDeclaration> needsReturnCheckAndFirst = new HashSet<>();
+    private HashMap<MethodDeclaration, Boolean> needsReturnCheckAndFirst = new HashMap<>(); // the boolean field indicates if we need to wrap the modified return in if-stmt
     private HashSet<MethodDeclaration> needsBreakCheck = new HashSet<>();
     private HashSet<MethodDeclaration> needsContinueCheck = new HashSet<>();
     private HashMap<MethodDeclaration, VariantCallsite> variant2Callsite = new HashMap<>();
@@ -84,9 +84,7 @@ public class RewriteFinalizer extends ASTVisitor {
         }
         if (locationNodeCheck.hasReturn || fixCodeNodeCheck.hasReturn) {
             needsReturnCheck.addAll(chain);
-            // todo: this is likely wrong, causing the old error of Closure-1b, but shouldn't matter for IntroClass
-            //  we might need to do something similar to the break check below
-            needsReturnCheckAndFirst.add(chain.get(0));
+            needsReturnCheckAndFirst.put(chain.get(0), shouldWrapReturnInIf(locationNode));
         }
         else if (locationNodeCheck.hasBreak || fixCodeNodeCheck.hasBreak) {
             MethodDeclaration closestBreakPoint = findClosestCheckPoint(locationNode, true);
@@ -96,6 +94,13 @@ public class RewriteFinalizer extends ASTVisitor {
             MethodDeclaration closestContinuePoint = findClosestCheckPoint(locationNode, false);
             needsContinueCheck.add(closestContinuePoint);
         }
+    }
+
+    private boolean shouldWrapReturnInIf(Statement locationNode) {
+        if (locationNode instanceof ReturnStatement && locationNode.getParent() instanceof Block && locationNode.getParent().getParent() instanceof MethodDeclaration) {
+            return false;
+        }
+        return true;
     }
 
     /**
@@ -171,7 +176,7 @@ public class RewriteFinalizer extends ASTVisitor {
         this.ast = cu.getAST();
 
         this.needsBreakCheck = updateHashSet(this.needsBreakCheck);
-        this.needsReturnCheckAndFirst = updateHashSet(this.needsReturnCheckAndFirst);
+        this.needsReturnCheckAndFirst = updateNeedsReturnCheckAndFirst(this.needsReturnCheckAndFirst);
         this.needsReturnCheck = updateHashSet(this.needsReturnCheck);
         this.needsContinueCheck = updateHashSet(this.needsContinueCheck);
         this.variantsWithoutRewritingReturn = updateHashSet(this.variantsWithoutRewritingReturn);
@@ -183,6 +188,14 @@ public class RewriteFinalizer extends ASTVisitor {
         HashSet<MethodDeclaration> res = new HashSet<>();
         for (MethodDeclaration oldMethod : oldSet) {
             res.add(getMethodDeclaration(this.cu, oldMethod));
+        }
+        return res;
+    }
+
+    private HashMap<MethodDeclaration, Boolean> updateNeedsReturnCheckAndFirst(HashMap<MethodDeclaration, Boolean> oldMap) {
+        HashMap<MethodDeclaration, Boolean> res = new HashMap<>();
+        for (Map.Entry<MethodDeclaration, Boolean> entry : oldMap.entrySet()) {
+            res.put(getMethodDeclaration(this.cu, entry.getKey()), entry.getValue());
         }
         return res;
     }
@@ -399,12 +412,17 @@ public class RewriteFinalizer extends ASTVisitor {
                 SimpleName fa = ast.newSimpleName(collector.hasReturnFieldName);
                 ifStmt.setExpression(fa);
                 ReturnStatement retStmt = ast.newReturnStatement();
-                if (needsReturnCheckAndFirst.contains(m) && hasReturnValue(mutatedMethod)) {
+                if (needsReturnCheckAndFirst.containsKey(m) && hasReturnValue(mutatedMethod)) {
                     SimpleName retValFA = ast.newSimpleName(collector.returnValueFieldName);
                     retStmt.setExpression(retValFA);
                 }
-                ifStmt.setThenStatement(retStmt);
-                b.statements().add(ifStmt);
+                if (needsReturnCheckAndFirst.containsKey(m) && !needsReturnCheckAndFirst.get(m)) {
+                    b.statements().add(retStmt);
+                }
+                else {
+                    ifStmt.setThenStatement(retStmt);
+                    b.statements().add(ifStmt);
+                }
             }
         }
     }
