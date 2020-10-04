@@ -45,12 +45,17 @@ import clegoues.genprog4java.mut.Mutation;
 import clegoues.genprog4java.mut.WeightedHole;
 import clegoues.genprog4java.mut.WeightedMutation;
 import clegoues.genprog4java.mut.edits.java.JavaSavedEdit;
+import clegoues.genprog4java.mut.holes.java.JavaLocation;
 import clegoues.genprog4java.rep.JavaRepresentation;
 import clegoues.genprog4java.rep.Representation;
 import clegoues.util.ConfigurationBuilder;
 import clegoues.util.GlobalUtils;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.log4j.Logger;
+import org.eclipse.jdt.core.dom.ASTNode;
+import org.eclipse.jdt.core.dom.ASTVisitor;
+import org.eclipse.jdt.core.dom.MethodDeclaration;
+import org.eclipse.jdt.core.dom.MethodInvocation;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -315,14 +320,59 @@ public abstract class Search<G extends EditOperation> {
 				Pair<Mutation, Double> chosenMutation = (Pair<Mutation, Double>) GlobalUtils.chooseOneWeighted(availableMutationsAL);
 				Mutation mut = chosenMutation.getLeft();
 				List<WeightedHole> allowed = variant.editSources(location, mut);
-				if(!allowed.isEmpty()){
 				allowed = rescaleAllowed(mut,allowed, variant,location.getId());
-				WeightedHole selected = (WeightedHole) GlobalUtils
-						.chooseOneWeighted(new ArrayList(allowed));
-				variant.performEdit(mut, location, selected.getHole());
+				boolean found = false;
+				while (!found) {
+					if(!allowed.isEmpty()){
+						WeightedHole selected = (WeightedHole) GlobalUtils
+								.chooseOneWeighted(new ArrayList(allowed));
+						if (!shouldExcludeFixingIngredient(location, selected)) {
+							found = true;
+							variant.performEdit(mut, location, selected.getHole());
+						}
+						else {
+							allowed.remove(selected);
+						}
+					}
+					else {
+						break;
+					}
 				}
-
 			}
+		}
+	}
+
+	private boolean shouldExcludeFixingIngredient(Location location, WeightedHole hole) {
+		ASTNode locationNode = ((JavaLocation) location).getCodeElement();
+		ASTNode fixingIngredient = (ASTNode) hole.getHole().getCode();
+		MethodDeclaration currentMethod = getMethodDeclaration(locationNode);
+		RecursiveCallChecker visitor = new RecursiveCallChecker(currentMethod);
+		fixingIngredient.accept(visitor);
+		return visitor.hasRecursive;
+	}
+
+	private static MethodDeclaration getMethodDeclaration(ASTNode node) {
+	    if (node == null)
+	    	throw new RuntimeException("No surrounding method decl.");
+		else if (node instanceof MethodDeclaration)
+			return (MethodDeclaration) node;
+		else
+			return getMethodDeclaration(node.getParent());
+	}
+
+	static class RecursiveCallChecker extends ASTVisitor {
+		final MethodDeclaration md;
+		boolean hasRecursive = false;
+		RecursiveCallChecker(MethodDeclaration m) {
+			md = m;
+		}
+		@Override
+		public boolean visit(MethodInvocation node) {
+			if (node.getName().getIdentifier().equals(md.getName().getIdentifier()) && node.arguments().size() == md.parameters().size()) {
+			    // unfortunately arguments() does not store type info of the arguments
+				hasRecursive = true;
+			}
+		    return true;
 		}
 	}
 	
