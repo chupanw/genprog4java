@@ -804,11 +804,20 @@ class FieldInitVisitor extends ASTVisitor {
                 assignments.add(assignStmt);
             }
         }
-        Block block = (Block) node.getParent();
-        int baseIndex = block.statements().indexOf(node);
-        block.statements().remove(baseIndex);
+        List statements;
+        if (node.getParent() instanceof Block) {
+            statements = ((Block) node.getParent()).statements();
+        }
+        else if (node.getParent() instanceof SwitchStatement) {
+            statements = ((SwitchStatement) node.getParent()).statements();
+        }
+        else {
+            throw new RuntimeException("Unexpected type, check if it has statements field: " + node.getParent());
+        }
+        int baseIndex = statements.indexOf(node);
+        statements.remove(baseIndex);
         for (int i = 0; i < assignments.size(); i++) {
-            block.statements().add(baseIndex + i, assignments.get(i));
+            statements.add(baseIndex + i, assignments.get(i));
         }
         return false;
     }
