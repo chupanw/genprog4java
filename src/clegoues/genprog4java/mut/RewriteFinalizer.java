@@ -236,6 +236,25 @@ public class RewriteFinalizer extends ASTVisitor {
             res = getMethodDeclaration(t, oldMethod);
             if (res != null) return res;
         }
+        MethodDeclarationCollector collector = new MethodDeclarationCollector();
+        cu.accept(collector);
+        for (MethodDeclaration m : collector.methods) {
+            if (m.getName().getIdentifier().equals(oldMethod.getName().getIdentifier())
+                    && m.parameters().size() == oldMethod.parameters().size()) {
+                boolean parameterMatch = true;
+                for (int i = 0; i < oldMethod.parameters().size(); i++) {
+                    SingleVariableDeclaration thisParameter = (SingleVariableDeclaration) m.parameters().get(i);
+                    SingleVariableDeclaration thatParameter = (SingleVariableDeclaration) oldMethod.parameters().get(i);
+                    if (!thisParameter.getType().toString().equals(thatParameter.getType().toString()) || !thisParameter.getName().getIdentifier().equals(thatParameter.getName().getIdentifier())) {
+                        parameterMatch = false;
+                        break;
+                    }
+                }
+                if (parameterMatch) {
+                    return m;
+                }
+            }
+        }
         throw new RuntimeException("MethodDeclaration not found: " + oldMethod.getName().getIdentifier());
     }
 
@@ -1237,5 +1256,19 @@ class VariantCallsiteFinder extends ASTVisitor {
         else {
             return new VariantCallsite(newCallsite, oldCallsite.isInsideLoop);
         }
+    }
+}
+
+/**
+ * Fallback way of matching old method to new method.
+ *
+ * Only methods are matched, no types.
+ */
+class MethodDeclarationCollector extends ASTVisitor {
+    HashSet<MethodDeclaration> methods = new HashSet<>();
+    @Override
+    public boolean visit(MethodDeclaration node) {
+        methods.add(node);
+        return true;
     }
 }
