@@ -52,10 +52,7 @@ import clegoues.util.ConfigurationBuilder;
 import clegoues.util.GlobalUtils;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.log4j.Logger;
-import org.eclipse.jdt.core.dom.ASTNode;
-import org.eclipse.jdt.core.dom.ASTVisitor;
-import org.eclipse.jdt.core.dom.MethodDeclaration;
-import org.eclipse.jdt.core.dom.MethodInvocation;
+import org.eclipse.jdt.core.dom.*;
 
 import java.io.File;
 import java.util.ArrayList;
@@ -348,7 +345,10 @@ public abstract class Search<G extends EditOperation> {
 		MethodDeclaration currentMethod = getMethodDeclaration(locationNode);
 		RecursiveCallChecker visitor = new RecursiveCallChecker(currentMethod);
 		fixingIngredient.accept(visitor);
-		return visitor.hasRecursive;
+
+		StatementCounter stmtCounter = new StatementCounter();
+		fixingIngredient.accept(stmtCounter);
+		return visitor.hasRecursive || stmtCounter.count > 3;
 	}
 
 	private static MethodDeclaration getMethodDeclaration(ASTNode node) {
@@ -358,6 +358,16 @@ public abstract class Search<G extends EditOperation> {
 			return (MethodDeclaration) node;
 		else
 			return getMethodDeclaration(node.getParent());
+	}
+
+	static class StatementCounter extends ASTVisitor {
+		int count = 0;
+		@Override
+		public void preVisit(ASTNode node) {
+		    if (node instanceof Statement && !(node instanceof Block)) {
+		    	count++;
+			}
+		}
 	}
 
 	static class RecursiveCallChecker extends ASTVisitor {
