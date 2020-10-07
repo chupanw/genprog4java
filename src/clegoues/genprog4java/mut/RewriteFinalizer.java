@@ -895,7 +895,7 @@ class VariantBreakContinueReturnVisitor extends ASTVisitor {
 
             StructuralPropertyDescriptor property = node.getLocationInParent();
             if (property instanceof ChildListPropertyDescriptor) {
-                storeEdit((Block) node.getParent(), node, b);
+                storeEdit((Statement) node.getParent(), node, b);
             } else {
                 node.getParent().setStructuralProperty(property, b);
             }
@@ -916,7 +916,7 @@ class VariantBreakContinueReturnVisitor extends ASTVisitor {
 
         StructuralPropertyDescriptor property = node.getLocationInParent();
         if (property instanceof ChildListPropertyDescriptor) {
-            storeEdit((Block) node.getParent(), node, b);
+            storeEdit((Statement) node.getParent(), node, b);
         } else {
             node.getParent().setStructuralProperty(property, b);
         }
@@ -945,7 +945,7 @@ class VariantBreakContinueReturnVisitor extends ASTVisitor {
 
         StructuralPropertyDescriptor property = node.getLocationInParent();
         if (property instanceof ChildListPropertyDescriptor) {
-            storeEdit((Block) node.getParent(), node, b);
+            storeEdit((Statement) node.getParent(), node, b);
         } else {
             node.getParent().setStructuralProperty(property, b);
         }
@@ -964,24 +964,31 @@ class VariantBreakContinueReturnVisitor extends ASTVisitor {
         }
     }
 
-    private void storeEdit(Block b, ASTNode oldNode, ASTNode newNode) {
+    private void storeEdit(Statement b, ASTNode oldNode, ASTNode newNode) {
         Edit e = new Edit(b, oldNode, newNode);
         edits.add(e);
     }
 
     public void applyEdits() {
         for (Edit e : edits) {
-            int index = e.block.statements().indexOf(e.oldNode);
-            e.block.statements().remove(e.oldNode);
-            e.block.statements().add(index, e.newNode);
+            List statements;
+            if (e.block instanceof Block)
+                statements = ((Block) e.block).statements();
+            else if (e.block instanceof SwitchStatement)
+                statements = ((SwitchStatement) e.block).statements();
+            else
+                throw new RuntimeException("Unknown Statement type, does it have a statements field?: " + e.block);
+            int index = statements.indexOf(e.oldNode);
+            statements.remove(e.oldNode);
+            statements.add(index, e.newNode);
         }
     }
 
     class Edit {
-        Block block;
+        Statement block;
         ASTNode oldNode;
         ASTNode newNode;
-        Edit(Block b, ASTNode oldNode, ASTNode newNode) {
+        Edit(Statement b, ASTNode oldNode, ASTNode newNode) {
             this.block = b;
             this.oldNode = oldNode;
             this.newNode = newNode;
