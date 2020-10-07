@@ -479,7 +479,7 @@ public class RewriteFinalizer extends ASTVisitor {
             for (FieldDeclaration f : t.getFields()) {
                 int idx = -1;
                 for (int i = 0; i < f.modifiers().size(); i++) {
-                    if (((Modifier) f.modifiers().get(i)).isFinal()) {
+                    if ((f.modifiers().get(i) instanceof Modifier) && ((Modifier) f.modifiers().get(i)).isFinal()) {
                         idx = i;
                     }
                 }
