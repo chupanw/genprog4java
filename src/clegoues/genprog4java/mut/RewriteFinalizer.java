@@ -692,6 +692,9 @@ class VarNamesCollector extends ASTVisitor {
         Type t = node.getType();
         for (VariableDeclarationFragment f : (List<VariableDeclarationFragment>) node.fragments()) {
             String varName = f.getName().getIdentifier();
+            if (!f.extraDimensions().isEmpty()) {
+                t = node.getAST().newArrayType((Type) ASTNode.copySubtree(node.getAST(), t), f.extraDimensions().size());
+            }
             if (!varNames.containsKey(varName)) {
                 AST ast = node.getAST();
                 String fieldName = varName + "_" + genRandomString();
