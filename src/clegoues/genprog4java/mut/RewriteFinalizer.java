@@ -661,7 +661,11 @@ class VarNamesCollector extends ASTVisitor {
             AST ast = node.getAST();
             String fieldName = name + "_" + genRandomString();
             varNames.put(name, fieldName);
-            MyParameter p = new MyParameter(node.getType(), ast.newSimpleName(name), ast, node.isVarargs());
+            Type t = node.getType();
+            if (!node.extraDimensions().isEmpty()) {
+                t = node.getAST().newArrayType((Type) ASTNode.copySubtree(node.getAST(), t), node.extraDimensions().size());
+            }
+            MyParameter p = new MyParameter(t, ast.newSimpleName(name), ast, node.isVarargs());
             if (node.getLocationInParent() == MethodDeclaration.PARAMETERS_PROPERTY) {
                 parameters.add(p);
             } else {
@@ -676,6 +680,9 @@ class VarNamesCollector extends ASTVisitor {
         Type t = node.getType();
         for (VariableDeclarationFragment f : (List<VariableDeclarationFragment>) node.fragments()) {
             String varName = f.getName().getIdentifier();
+            if (!f.extraDimensions().isEmpty()) {
+                t = node.getAST().newArrayType((Type) ASTNode.copySubtree(node.getAST(), t), f.extraDimensions().size());
+            }
             if (!varNames.containsKey(varName)) {
                 AST ast = node.getAST();
                 String fieldName = varName + "_" + genRandomString();
@@ -1117,7 +1124,7 @@ class StoreStateBeforeMethodCallVisitor extends ASTVisitor {
         FieldDeclaration stackField = ast.newFieldDeclaration(vdf);
         stackField.modifiers().add(ast.newModifier(Modifier.ModifierKeyword.STATIC_KEYWORD));
         stackField.setType(ast.newSimpleType(ast.newName("java.util.Stack")));
-        mutatedClass.bodyDeclarations().add(stackField);
+        mutatedClass.bodyDeclarations().add(0, stackField);
 
         // store method
         MethodDeclaration storeMethod = ast.newMethodDeclaration();
@@ -1134,7 +1141,7 @@ class StoreStateBeforeMethodCallVisitor extends ASTVisitor {
             mi.arguments().add(ast.newSimpleName(f));
             storeBody.statements().add(ast.newExpressionStatement(mi));
         }
-        mutatedClass.bodyDeclarations().add(storeMethod);
+        mutatedClass.bodyDeclarations().add(0, storeMethod);
 
         // restore method
         MethodDeclaration restoreMethod = ast.newMethodDeclaration();
@@ -1156,7 +1163,7 @@ class StoreStateBeforeMethodCallVisitor extends ASTVisitor {
             assign.setRightHandSide(cast);
             restoreBody.statements().add(ast.newExpressionStatement(assign));
         }
-        mutatedClass.bodyDeclarations().add(restoreMethod);
+        mutatedClass.bodyDeclarations().add(0, restoreMethod);
     }
 
     public Type convertPrimitive(Type t, AST ast) {

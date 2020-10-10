@@ -302,6 +302,8 @@ public abstract class Search<G extends EditOperation> {
 				proMutList.add((Location)wa);
 			}
 			for (Location location : proMutList) {
+			    if (getMethodDeclaration(((JavaLocation) location).getCodeElement()) == null)
+			    	continue;	// we don't mutate static initializers
 				//the available mutations for this stmt
 				List<WeightedMutation> availableMutations = variant.availableMutations(location);
 				if(availableMutations.isEmpty()){
@@ -353,7 +355,7 @@ public abstract class Search<G extends EditOperation> {
 
 	private static MethodDeclaration getMethodDeclaration(ASTNode node) {
 	    if (node == null)
-	    	throw new RuntimeException("No surrounding method decl.");
+	        return null;	// could be static initializer
 		else if (node instanceof MethodDeclaration)
 			return (MethodDeclaration) node;
 		else
