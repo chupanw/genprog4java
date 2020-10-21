@@ -350,7 +350,9 @@ public abstract class Search<G extends EditOperation> {
 
 		StatementCounter stmtCounter = new StatementCounter();
 		fixingIngredient.accept(stmtCounter);
-		return visitor.hasRecursive || stmtCounter.count > 3;
+		return visitor.hasRecursive || stmtCounter.count > 3 
+			|| fixingIngredient instanceof SwitchCase 
+			|| fixingIngredient instanceof TypeDeclarationStatement;
 	}
 
 	private static MethodDeclaration getMethodDeclaration(ASTNode node) {

@@ -245,7 +245,7 @@ public class MergedRepresentation extends JavaRepresentation {
     }
 
     private void exclude(Set<EditOperation> set, EditOperation e) {
-        logger.info("Excluding " + e.toString());
+        logger.info("Excluding " + e.getVariantFolder() + " " + e.toString());
         set.add(e);
     }
 
