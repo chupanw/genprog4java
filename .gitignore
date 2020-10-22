@@ -27,3 +27,6 @@ testcache.ser
 FaultyStmtsAndWeights.txt
 
 venv/
+
+.settings/
+.vscode/
