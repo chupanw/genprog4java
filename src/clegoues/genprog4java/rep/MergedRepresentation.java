@@ -312,6 +312,10 @@ public class MergedRepresentation extends JavaRepresentation {
         for (TestCase posTest : Fitness.positiveTests) {
             testNumber++;
             logger.info("Merge check: checking test number " + testNumber + " out of " + Fitness.positiveTests.size());
+            if (shouldIgnoreTest(posTest.getTestName())) {
+                logger.info("Merge check: ignoring test " + posTest.getTestName());
+                continue;
+            }
             FitnessValue res = this.internalTestCase(
                     this.getVariantFolder(),
                     this.getVariantFolder(), posTest, false);
@@ -355,6 +359,27 @@ public class MergedRepresentation extends JavaRepresentation {
         logger.info("Merge check completed (time taken = "
                 + (System.currentTimeMillis() - startTime) + ")");
         return true;
+    }
+
+    /**
+     * Ignore some closure tests that seem flaky
+     * @param testName  fully_qualified_class::test_method
+     * @return true if the test should be ignored
+     */
+    private boolean shouldIgnoreTest(String testName) {
+        String t = testName.trim();
+        if (t.endsWith("CrossModuleMethodMotionTest::testTwoMethods")
+            || t.endsWith("CrossModuleMethodMotionTest::testClosureVariableReads3") 
+            || t.endsWith("InlineObjectLiteralsTest::testObject1")
+            || t.endsWith("InlineObjectLiteralsTest::testObject2")
+            || t.endsWith("InlineObjectLiteralsTest::testObject7")
+            || t.endsWith("InlineObjectLiteralsTest::testObject8")
+            || t.endsWith("InlineObjectLiteralsTest::testObject9")
+            || t.endsWith("InlineObjectLiteralsTest::testObject10")
+            || t.endsWith("InlineObjectLiteralsTest::testObject12")
+            || t.endsWith("IntegrationTest::testPerfTracker")) 
+            return true;
+        return false;
     }
 
     private void sortGenome() {
