@@ -1091,6 +1091,7 @@ class StoreStateBeforeMethodCallVisitor extends ASTVisitor {
 
     HashSet<String> localMethodNames;
     List<MyParameter> sortedVariables;
+    HashMap<String, Type> nameToType;
     AST ast;
     HashSet<ASTNode> cache;
 
@@ -1102,8 +1103,15 @@ class StoreStateBeforeMethodCallVisitor extends ASTVisitor {
         this.ast = ast;
         this.id = UUID.randomUUID().toString().replace('-', '_');
         sortedVariables = new LinkedList<>();
-        sortedVariables.addAll(collector.localVariables);
-        sortedVariables.addAll(collector.parameters);
+        nameToType = new HashMap<>();
+        for (MyParameter p : collector.localVariables) {
+            sortedVariables.add(p);
+            nameToType.put(collector.varNames.get(p.getName().getIdentifier()), p.getType());
+        }
+        for (MyParameter p : collector.parameters) {
+            sortedVariables.add(p);
+            nameToType.put(collector.varNames.get(p.getName().getIdentifier()), p.getType());
+        }
         sortedVariables.sort((a, b) -> a.getName().getIdentifier().compareTo(b.getName().getIdentifier()));
         localMethodNames = new HashSet<>();
         for (MethodDeclaration m : mutatedClass.getMethods()) {
@@ -1202,10 +1210,59 @@ class StoreStateBeforeMethodCallVisitor extends ASTVisitor {
 
     @Override
     public boolean visit(MethodInvocation node) {
-        if (node.getParent() instanceof ExpressionStatement && localMethodNames.contains(node.getName().getIdentifier())) {
+        // restore after return statement is unreachable
+        if (localMethodNames.contains(node.getName().getIdentifier()) && !(RewriteFinalizer.getStatement(node) instanceof ReturnStatement)) {
+            Assignment assign = getAssignment(node);
+            if (assign != null) {
+                Expression lhs = assign.getLeftHandSide();
+                if (lhs instanceof SimpleName && nameToType.containsKey(((SimpleName) lhs).getIdentifier())) {
+                    String originalVarName = ((SimpleName) lhs).getIdentifier();
+                    String tmpVarName = "tmp_" + UUID.randomUUID().toString().replace('-', '_');
+                    Statement stmt = RewriteFinalizer.getStatement(node);
+
+                    assign.setLeftHandSide(ast.newSimpleName(tmpVarName));
+
+                    VariableDeclarationFragment tmpDefFragment = ast.newVariableDeclarationFragment();
+                    tmpDefFragment.setName(ast.newSimpleName(tmpVarName));
+                    VariableDeclarationStatement tmpDefStmt = ast.newVariableDeclarationStatement(tmpDefFragment);
+                    tmpDefStmt.setType((Type) ASTNode.copySubtree(ast, nameToType.get(originalVarName)));
+
+                    Assignment tmp2origin = ast.newAssignment();
+                    tmp2origin.setLeftHandSide(ast.newSimpleName(originalVarName));
+                    tmp2origin.setRightHandSide(ast.newSimpleName(tmpVarName));
+                    ExpressionStatement tmp2originStmt = ast.newExpressionStatement(tmp2origin);
+
+                    if (stmt.getParent() instanceof Block) {
+                        Block b = (Block) stmt.getParent();
+                        int idx = b.statements().indexOf(stmt);
+                        b.statements().add(idx, tmpDefStmt);
+                        b.statements().add(idx + 2, tmp2originStmt);
+                    } 
+                    else {
+                        Block b = ast.newBlock();
+                        StructuralPropertyDescriptor property = stmt.getLocationInParent();
+                        stmt.getParent().setStructuralProperty(property, b);
+                        b.statements().add(tmpDefStmt);
+                        b.statements().add(stmt);
+                        b.statements().add(tmp2originStmt);
+                    }
+                }
+            } 
             replace(node);
         }
         return false;
+    }
+
+    private Assignment getAssignment(ASTNode n) {
+        if (n == null) {
+            return null;
+        }
+        else if (n instanceof Assignment) {
+            return (Assignment) n;
+        } 
+        else {
+            return getAssignment(n.getParent());
+        }
     }
 
     // let's assume instance creation does not usually create recursive calls
