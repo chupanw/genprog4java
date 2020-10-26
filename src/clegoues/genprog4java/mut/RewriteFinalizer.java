@@ -671,6 +671,8 @@ class VarNamesCollector extends ASTVisitor {
             } else {
                 localVariables.add(p);
             }
+        } else {
+            throw new RuntimeException("Repeated variable names, rename to avoid type collision");
         }
         return false;
     }
@@ -689,6 +691,8 @@ class VarNamesCollector extends ASTVisitor {
                 varNames.put(varName, fieldName);
                 MyParameter p = new MyParameter(t, ast.newSimpleName(varName), ast, false);
                 localVariables.add(p);
+            } else {
+                throw new RuntimeException("Repeated variable names, rename to avoid type collision");
             }
         }
         return false;
@@ -708,6 +712,8 @@ class VarNamesCollector extends ASTVisitor {
                 varNames.put(varName, fieldName);
                 MyParameter p = new MyParameter(t, ast.newSimpleName(varName), ast, false);
                 localVariables.add(p);
+            } else {
+                throw new RuntimeException("Repeated variable names, rename to avoid type collision");
             }
         }
         return false;
@@ -1238,6 +1244,12 @@ class StoreStateBeforeMethodCallVisitor extends ASTVisitor {
                         b.statements().add(idx, tmpDefStmt);
                         b.statements().add(idx + 2, tmp2originStmt);
                     } 
+                    else if (stmt.getParent() instanceof SwitchStatement) {
+                        SwitchStatement ss = (SwitchStatement) stmt.getParent();
+                        int idx = ss.statements().indexOf(stmt);
+                        ss.statements().add(idx, tmpDefStmt);
+                        ss.statements().add(idx + 2, tmp2originStmt);
+                    }
                     else {
                         Block b = ast.newBlock();
                         StructuralPropertyDescriptor property = stmt.getLocationInParent();
