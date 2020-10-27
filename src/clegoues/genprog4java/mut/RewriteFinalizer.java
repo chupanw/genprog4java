@@ -303,13 +303,13 @@ public class RewriteFinalizer extends ASTVisitor {
             FieldInitVisitor fiv = new FieldInitVisitor(collector, this.ast);
             initFields(fiv, mutatedMethod);
 
-            storeAndRestoreStates(collector, mutatedMethod);
-
             rewriteBreakContinueReturnInVariantMethods(mutatedMethod, collector, var2field);
 
             initBreakContinueReturnFields(mutatedMethod, collector);
 
             addChecksToVariantCallSites(mutatedMethod, collector);
+
+            storeAndRestoreStates(collector, mutatedMethod);
         }
         updateDoc();
     }
@@ -917,7 +917,7 @@ class VariantBreakContinueReturnVisitor extends ASTVisitor {
 
     @Override
     public boolean visit(BreakStatement node) {
-        if (!isPartOfSwitchStatement(node)) {
+        if (!isPartOfSwitchStatement(node) && !isPartOfLoop(node)) {
             Block b = ast.newBlock();
             Assignment assign = ast.newAssignment();
             SimpleName fa = ast.newSimpleName(collector.hasBreakFieldName);
@@ -939,20 +939,22 @@ class VariantBreakContinueReturnVisitor extends ASTVisitor {
 
     @Override
     public boolean visit(ContinueStatement node) {
-        Block b = ast.newBlock();
-        Assignment assign = ast.newAssignment();
-        SimpleName fa = ast.newSimpleName(collector.hasContinueFieldName);
-        assign.setLeftHandSide(fa);
-        assign.setRightHandSide(ast.newBooleanLiteral(true));
-        ExpressionStatement assignStmt = ast.newExpressionStatement(assign);
-        b.statements().add(assignStmt);
-        b.statements().add(ast.newReturnStatement());
+        if (!isPartOfLoop(node)) {
+            Block b = ast.newBlock();
+            Assignment assign = ast.newAssignment();
+            SimpleName fa = ast.newSimpleName(collector.hasContinueFieldName);
+            assign.setLeftHandSide(fa);
+            assign.setRightHandSide(ast.newBooleanLiteral(true));
+            ExpressionStatement assignStmt = ast.newExpressionStatement(assign);
+            b.statements().add(assignStmt);
+            b.statements().add(ast.newReturnStatement());
 
-        StructuralPropertyDescriptor property = node.getLocationInParent();
-        if (property instanceof ChildListPropertyDescriptor) {
-            storeEdit((Statement) node.getParent(), node, b);
-        } else {
-            node.getParent().setStructuralProperty(property, b);
+            StructuralPropertyDescriptor property = node.getLocationInParent();
+            if (property instanceof ChildListPropertyDescriptor) {
+                storeEdit((Statement) node.getParent(), node, b);
+            } else {
+                node.getParent().setStructuralProperty(property, b);
+            }
         }
         return false;
     }
@@ -992,6 +994,18 @@ class VariantBreakContinueReturnVisitor extends ASTVisitor {
                 return true;
             else
                 return isPartOfSwitchStatement(n.getParent());
+        }
+        else {
+            return false;
+        }
+    }
+
+    private boolean isPartOfLoop(ASTNode n) {
+        if (n != null) {
+            if (n instanceof WhileStatement || n instanceof ForStatement || n instanceof EnhancedForStatement || n instanceof DoStatement)
+                return true;
+            else
+                return isPartOfLoop(n.getParent());
         }
         else {
             return false;
@@ -1139,6 +1153,9 @@ class StoreStateBeforeMethodCallVisitor extends ASTVisitor {
             sortedVariables.add(p);
             nameToType.put(collector.varNames.get(p.getName().getIdentifier()), p.getType());
         }
+        sortedVariables.add(new MyParameter(ast.newPrimitiveType(PrimitiveType.BOOLEAN), ast.newSimpleName(collector.hasBreakFieldName), ast, false));
+        sortedVariables.add(new MyParameter(ast.newPrimitiveType(PrimitiveType.BOOLEAN), ast.newSimpleName(collector.hasContinueFieldName), ast, false));
+        sortedVariables.add(new MyParameter(ast.newPrimitiveType(PrimitiveType.BOOLEAN), ast.newSimpleName(collector.hasReturnFieldName), ast, false));
         sortedVariables.sort((a, b) -> a.getName().getIdentifier().compareTo(b.getName().getIdentifier()));
         localMethodNames = new HashSet<>();
         for (MethodDeclaration m : mutatedClass.getMethods()) {
@@ -1172,7 +1189,9 @@ class StoreStateBeforeMethodCallVisitor extends ASTVisitor {
             MethodInvocation mi = ast.newMethodInvocation();
             mi.setExpression(ast.newSimpleName("stack_" + id));
             mi.setName(ast.newSimpleName("push"));
-            String f = collector.varNames.get(sortedVariables.get(i).getName().getIdentifier());
+            String f = sortedVariables.get(i).getName().getIdentifier();
+            if (!f.startsWith("hasBreak_") && !f.startsWith("hasContinue_") && !f.startsWith("hasReturn_"))
+                f = collector.varNames.get(sortedVariables.get(i).getName().getIdentifier());
             mi.arguments().add(ast.newSimpleName(f));
             storeBody.statements().add(ast.newExpressionStatement(mi));
         }
@@ -1187,7 +1206,9 @@ class StoreStateBeforeMethodCallVisitor extends ASTVisitor {
         restoreMethod.setBody(restoreBody);
         for (int i = sortedVariables.size() - 1; i >= 0; i--) {
             Assignment assign = ast.newAssignment();
-            String f = collector.varNames.get(sortedVariables.get(i).getName().getIdentifier());
+            String f = sortedVariables.get(i).getName().getIdentifier();
+            if (!f.startsWith("hasBreak_") && !f.startsWith("hasContinue_") && !f.startsWith("hasReturn_"))
+                f = collector.varNames.get(sortedVariables.get(i).getName().getIdentifier());
             assign.setLeftHandSide(ast.newSimpleName(f));
             MethodInvocation mi = ast.newMethodInvocation();
             mi.setExpression(ast.newSimpleName("stack_" + id));
@@ -1281,7 +1302,15 @@ class StoreStateBeforeMethodCallVisitor extends ASTVisitor {
                     }
                 }
             } 
-            replace(node);
+            // Check if there exist break/continue/return in the code being surrounded because they can break the store/restore stack
+            Statement originalStmt = RewriteFinalizer.getStatement(node);
+            CheckBreakContinueReturnVisitor checker = new CheckBreakContinueReturnVisitor(originalStmt);
+            originalStmt.accept(checker);
+            if (checker.hasBreak || checker.hasContinue || checker.hasReturn) {
+                return false;
+            } else {
+                replace(node);
+            }
         }
         return false;
     }
