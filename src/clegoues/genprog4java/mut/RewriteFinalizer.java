@@ -86,11 +86,11 @@ public class RewriteFinalizer extends ASTVisitor {
             needsReturnCheck.addAll(chain);
             needsReturnCheckAndFirst.put(chain.get(0), shouldWrapReturnInIf(locationNode));
         }
-        else if (locationNodeCheck.hasBreak || fixCodeNodeCheck.hasBreak) {
+        if (locationNodeCheck.hasBreak || fixCodeNodeCheck.hasBreak) {
             MethodDeclaration closestBreakPoint = findClosestCheckPoint(locationNode, true);
             needsBreakCheck.add(closestBreakPoint);
         }
-        else if (locationNodeCheck.hasContinue || fixCodeNodeCheck.hasContinue) {
+        if (locationNodeCheck.hasContinue || fixCodeNodeCheck.hasContinue) {
             MethodDeclaration closestContinuePoint = findClosestCheckPoint(locationNode, false);
             needsContinueCheck.add(closestContinuePoint);
         }
@@ -390,7 +390,7 @@ public class RewriteFinalizer extends ASTVisitor {
 
     private void addChecksToVariantCallSites(MethodDeclaration mutatedMethod, VarNamesCollector collector) {
         for (MethodDeclaration m : method2Variants.get(mutatedMethod)) {
-            if (needsBreakCheck.contains(m) && variant2Callsite.get(m).isInsideLoop) {
+            if (needsBreakCheck.contains(m)) {
                 Block b = variant2Callsite.get(m).block;
                 IfStatement ifStmt = ast.newIfStatement();
                 SimpleName fa = ast.newSimpleName(collector.hasBreakFieldName);
@@ -653,6 +653,18 @@ class VarNamesCollector extends ASTVisitor {
         return Integer.toString(Math.abs(rand.nextInt()));
     }
 
+    Type getTypeOf(String name) {
+        for (MyParameter p : parameters) {
+            if (p.getName().getIdentifier().equals(name))
+                return p.getType();
+        }
+        for (MyParameter p : localVariables) {
+            if (p.getName().getIdentifier().equals(name))
+                return p.getType();
+        }
+        throw new RuntimeException("Couldn't find variable with name " + name);
+    }
+
     @Override
     public boolean visit(SingleVariableDeclaration node) {
         // formal parameters
@@ -672,7 +684,10 @@ class VarNamesCollector extends ASTVisitor {
                 localVariables.add(p);
             }
         } else {
-            throw new RuntimeException("Repeated variable names, rename to avoid type collision");
+            Type thisType = node.getType();
+            Type existingType = getTypeOf(name);
+            if (!thisType.toString().equals(existingType.toString()))
+                throw new RuntimeException("Repeated variable names, rename to avoid type collision: " + name + " in method " + md.getName().getIdentifier());
         }
         return false;
     }
@@ -692,7 +707,10 @@ class VarNamesCollector extends ASTVisitor {
                 MyParameter p = new MyParameter(t, ast.newSimpleName(varName), ast, false);
                 localVariables.add(p);
             } else {
-                throw new RuntimeException("Repeated variable names, rename to avoid type collision");
+                Type thisType = t;
+                Type existingType = getTypeOf(varName);
+                if (!thisType.toString().equals(existingType.toString()))
+                    throw new RuntimeException("Repeated variable names, rename to avoid type collision: " + varName + " in method " + md.getName().getIdentifier());
             }
         }
         return false;
@@ -713,7 +731,10 @@ class VarNamesCollector extends ASTVisitor {
                 MyParameter p = new MyParameter(t, ast.newSimpleName(varName), ast, false);
                 localVariables.add(p);
             } else {
-                throw new RuntimeException("Repeated variable names, rename to avoid type collision");
+                Type thisType = t;
+                Type existingType = getTypeOf(varName);
+                if (!thisType.toString().equals(existingType.toString()))
+                    throw new RuntimeException("Repeated variable names, rename to avoid type collision: " + varName + " in method " + md.getName().getIdentifier());
             }
         }
         return false;
