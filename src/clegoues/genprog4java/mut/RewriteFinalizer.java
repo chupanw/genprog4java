@@ -1272,6 +1272,7 @@ class StoreStateBeforeMethodCallVisitor extends ASTVisitor {
 
                     VariableDeclarationFragment tmpDefFragment = ast.newVariableDeclarationFragment();
                     tmpDefFragment.setName(ast.newSimpleName(tmpVarName));
+                    tmpDefFragment.setInitializer(ast.newSimpleName(originalVarName));
                     VariableDeclarationStatement tmpDefStmt = ast.newVariableDeclarationStatement(tmpDefFragment);
                     tmpDefStmt.setType((Type) ASTNode.copySubtree(ast, nameToType.get(originalVarName)));
 
