@@ -302,7 +302,7 @@ public abstract class Search<G extends EditOperation> {
 				proMutList.add((Location)wa);
 			}
 			for (Location location : proMutList) {
-			    if (getMethodDeclaration(((JavaLocation) location).getCodeElement()) == null)
+			    if (getMethodDeclaration(((JavaLocation) location).getCodeElement()) == null || ((JavaLocation) location).getCodeElement() instanceof SwitchCase)
 			    	continue;	// we don't mutate static initializers
 				//the available mutations for this stmt
 				List<WeightedMutation> availableMutations = variant.availableMutations(location);

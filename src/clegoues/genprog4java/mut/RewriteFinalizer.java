@@ -309,6 +309,7 @@ public class RewriteFinalizer extends ASTVisitor {
 
             addChecksToVariantCallSites(mutatedMethod, collector);
 
+            // store must appear before the field init sequence
             storeAndRestoreStates(collector, mutatedMethod);
         }
         updateDoc();
@@ -333,9 +334,10 @@ public class RewriteFinalizer extends ASTVisitor {
         stateRestoreVisitor.writeStoreAndRestoreToClass();
 
         mutatedMethod.accept(stateRestoreVisitor);
-        for (MethodDeclaration m : method2Variants.get(mutatedMethod)) {
-            m.accept(stateRestoreVisitor);
-        }
+        stateRestoreVisitor.processStartAndEndOfMethod();   // must be after accept, so we know if there is any return
+//        for (MethodDeclaration m : method2Variants.get(mutatedMethod)) {
+//            m.accept(stateRestoreVisitor);
+//        }
     }
 
     private void collectVariableNames(VarNamesCollector collector, MethodDeclaration mutatedMethod) {
@@ -563,7 +565,7 @@ public class RewriteFinalizer extends ASTVisitor {
         }
     }
 
-    private MethodDeclaration getMethodDeclaration(ASTNode n) {
+    public static MethodDeclaration getMethodDeclaration(ASTNode n) {
         if (n != null) {
             if (n instanceof MethodDeclaration) {
                 return (MethodDeclaration) n;
@@ -1134,13 +1136,14 @@ class StoreStateBeforeMethodCallVisitor extends ASTVisitor {
     List<MyParameter> sortedVariables;
     HashMap<String, Type> nameToType;
     AST ast;
-    HashSet<ASTNode> cache;
+
+    MethodDeclaration mutatedMethod;
 
     StoreStateBeforeMethodCallVisitor(VarNamesCollector collector, MethodDeclaration mutatedMethod, AST ast) {
         this.collector = collector;
         this.mutatedClass = RewriteFinalizer.getTypeDeclaration(mutatedMethod);
+        this.mutatedMethod = mutatedMethod;
 
-        cache = new HashSet<>();
         this.ast = ast;
         this.id = UUID.randomUUID().toString().replace('-', '_');
         sortedVariables = new LinkedList<>();
@@ -1256,64 +1259,65 @@ class StoreStateBeforeMethodCallVisitor extends ASTVisitor {
         return t;
     }
 
-    @Override
-    public boolean visit(MethodInvocation node) {
-        // restore after return statement is unreachable
-        if (localMethodNames.contains(node.getName().getIdentifier()) && !(RewriteFinalizer.getStatement(node) instanceof ReturnStatement)) {
-            Assignment assign = getAssignment(node);
-            if (assign != null) {
-                Expression lhs = assign.getLeftHandSide();
-                if (lhs instanceof SimpleName && nameToType.containsKey(((SimpleName) lhs).getIdentifier())) {
-                    String originalVarName = ((SimpleName) lhs).getIdentifier();
-                    String tmpVarName = "tmp_" + UUID.randomUUID().toString().replace('-', '_');
-                    Statement stmt = RewriteFinalizer.getStatement(node);
+    public void processStartAndEndOfMethod() {
+        // insert store as the first statement
+        MethodInvocation store = ast.newMethodInvocation();
+        store.setName(ast.newSimpleName("store_" + id));
+        Statement storeStmt = ast.newExpressionStatement(store);
+        mutatedMethod.getBody().statements().add(0, storeStmt);
 
-                    assign.setLeftHandSide(ast.newSimpleName(tmpVarName));
-
-                    VariableDeclarationFragment tmpDefFragment = ast.newVariableDeclarationFragment();
-                    tmpDefFragment.setName(ast.newSimpleName(tmpVarName));
-                    tmpDefFragment.setInitializer(ast.newSimpleName(originalVarName));
-                    VariableDeclarationStatement tmpDefStmt = ast.newVariableDeclarationStatement(tmpDefFragment);
-                    tmpDefStmt.setType((Type) ASTNode.copySubtree(ast, nameToType.get(originalVarName)));
-
-                    Assignment tmp2origin = ast.newAssignment();
-                    tmp2origin.setLeftHandSide(ast.newSimpleName(originalVarName));
-                    tmp2origin.setRightHandSide(ast.newSimpleName(tmpVarName));
-                    ExpressionStatement tmp2originStmt = ast.newExpressionStatement(tmp2origin);
-
-                    if (stmt.getParent() instanceof Block) {
-                        Block b = (Block) stmt.getParent();
-                        int idx = b.statements().indexOf(stmt);
-                        b.statements().add(idx, tmpDefStmt);
-                        b.statements().add(idx + 2, tmp2originStmt);
-                    } 
-                    else if (stmt.getParent() instanceof SwitchStatement) {
-                        SwitchStatement ss = (SwitchStatement) stmt.getParent();
-                        int idx = ss.statements().indexOf(stmt);
-                        ss.statements().add(idx, tmpDefStmt);
-                        ss.statements().add(idx + 2, tmp2originStmt);
-                    }
-                    else {
-                        Block b = ast.newBlock();
-                        StructuralPropertyDescriptor property = stmt.getLocationInParent();
-                        stmt.getParent().setStructuralProperty(property, b);
-                        b.statements().add(tmpDefStmt);
-                        b.statements().add(stmt);
-                        b.statements().add(tmp2originStmt);
-                    }
-                }
-            } 
-            // Check if there exist break/continue/return in the code being surrounded because they can break the store/restore stack
-            Statement originalStmt = RewriteFinalizer.getStatement(node);
-            CheckBreakContinueReturnVisitor checker = new CheckBreakContinueReturnVisitor(originalStmt);
-            originalStmt.accept(checker);
-            if (checker.hasBreak || checker.hasContinue || checker.hasReturn) {
-                return false;
-            } else {
-                replace(node);
-            }
+        Statement lastStatement = (Statement) mutatedMethod.getBody().statements().get(mutatedMethod.getBody().statements().size() - 1);
+        Type retType = mutatedMethod.getReturnType2();
+        boolean isReturnVoid = (retType instanceof PrimitiveType) && ((PrimitiveType) retType).getPrimitiveTypeCode() == PrimitiveType.VOID;
+        if (!(lastStatement instanceof ReturnStatement) && isReturnVoid) {
+            MethodInvocation restore = ast.newMethodInvocation();
+            restore.setName(ast.newSimpleName("restore_" + id));
+            Statement restoreStmt = ast.newExpressionStatement(restore);
+            mutatedMethod.getBody().statements().add(restoreStmt);
         }
-        return false;
+    }
+
+    @Override
+    public boolean visit(ReturnStatement node) {
+        MethodInvocation restore = ast.newMethodInvocation();
+        restore.setName(ast.newSimpleName("restore_" + id));
+        Statement restoreStmt = ast.newExpressionStatement(restore);
+
+        Statement assignStmt = null;
+        if (node.getExpression() != null && !node.getExpression().toString().equals(collector.returnValueFieldName)) {
+            Expression originalReturnExp = node.getExpression();
+            StructuralPropertyDescriptor property = originalReturnExp.getLocationInParent();
+            node.setStructuralProperty(property, ast.newSimpleName(collector.returnValueFieldName));    // reset the parent of originalReturnExp to null
+
+            Assignment assign = ast.newAssignment();
+            assign.setLeftHandSide(ast.newSimpleName(collector.returnValueFieldName));
+            assign.setRightHandSide(originalReturnExp);
+            assignStmt = ast.newExpressionStatement(assign);
+        }
+
+        if (node.getParent() instanceof Block) {
+            Block closestBlock = (Block) node.getParent();
+            int originalStmtIndex = closestBlock.statements().indexOf(node);
+            closestBlock.statements().add(originalStmtIndex, restoreStmt);
+            if (assignStmt != null)
+                closestBlock.statements().add(originalStmtIndex, assignStmt);
+        }
+        else if (node.getParent() instanceof SwitchStatement) {
+            SwitchStatement closestBlock = (SwitchStatement) node.getParent();
+            int originalStmtIndex = closestBlock.statements().indexOf(node);
+            closestBlock.statements().add(originalStmtIndex, restoreStmt);
+            if (assignStmt != null)
+                closestBlock.statements().add(originalStmtIndex, assignStmt);
+        } else {
+            Block b = ast.newBlock();
+            StructuralPropertyDescriptor property = node.getLocationInParent();
+            node.getParent().setStructuralProperty(property, b);    // this should reset the parent of node to null
+            if (assignStmt != null)
+                b.statements().add(assignStmt);
+            b.statements().add(restoreStmt);
+            b.statements().add(node);
+        }
+        return true;
     }
 
     private Assignment getAssignment(ASTNode n) {
@@ -1325,37 +1329,6 @@ class StoreStateBeforeMethodCallVisitor extends ASTVisitor {
         } 
         else {
             return getAssignment(n.getParent());
-        }
-    }
-
-    // let's assume instance creation does not usually create recursive calls
-//    @Override
-//    public boolean visit(ClassInstanceCreation node) {
-//        if (node.getParent() instanceof ExpressionStatement && localMethodNames.contains()) {
-//            replace(node);
-//        }
-//        return false;
-//    }
-
-    private void replace(ASTNode node) {
-        Block closestBlock = RewriteFinalizer.getBlock(node);
-        Statement originalStmt = RewriteFinalizer.getStatement(node);
-        if (originalStmt.getParent() != closestBlock) {
-            System.err.println("[DEBUG] method call not inside block, failed to store/restore state, potentially unsafe for recursive calls");
-        }
-        else {
-            if (!cache.contains(originalStmt)) {
-                cache.add(originalStmt);
-                MethodInvocation store = ast.newMethodInvocation();
-                store.setName(ast.newSimpleName("store_" + id));
-                Statement storeStmt = ast.newExpressionStatement(store);
-                MethodInvocation restore = ast.newMethodInvocation();
-                restore.setName(ast.newSimpleName("restore_" + id));
-                Statement restoreStmt = ast.newExpressionStatement(restore);
-                int originalStmtIndex = closestBlock.statements().indexOf(originalStmt);
-                closestBlock.statements().add(originalStmtIndex, storeStmt);
-                closestBlock.statements().add(originalStmtIndex + 2, restoreStmt);
-            }
         }
     }
 }
