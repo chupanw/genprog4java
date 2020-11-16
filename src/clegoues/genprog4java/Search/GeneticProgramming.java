@@ -2,6 +2,7 @@ package clegoues.genprog4java.Search;
 
 import clegoues.genprog4java.fitness.Fitness;
 import clegoues.genprog4java.main.Configuration;
+import clegoues.genprog4java.main.Solutions;
 import clegoues.genprog4java.mut.EditOperation;
 import clegoues.genprog4java.rep.MergedRepresentation;
 import clegoues.genprog4java.rep.Representation;
@@ -85,6 +86,7 @@ public class GeneticProgramming<G extends EditOperation> extends Search<G>{
 		logger.info("Population size: " + initialPopulation.size());
 
 		for (Representation<G> item : initialPopulation) {
+			Solutions.increaseAttemptCount();
 			if (fitnessEngine.testFitness(0, item)) {
 				this.noteSuccess(item, original, 0);
 				if(!continueSearch) {
@@ -157,6 +159,7 @@ public class GeneticProgramming<G extends EditOperation> extends Search<G>{
 
 			// step 4: fitness
 			for (Representation<G> item : incomingPopulation) {
+				Solutions.increaseAttemptCount();
 				if (fitnessEngine.testFitness(gen, item)) {
 					this.noteSuccess(item, original, gen);
 					if(!continueSearch) 

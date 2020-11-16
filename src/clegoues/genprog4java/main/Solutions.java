@@ -12,6 +12,7 @@ public class Solutions {
 
     private static FileWriter writer;
     public static long startTime = System.currentTimeMillis();
+    public static long repairAttemptCount = 0L;
 
     static {
         try {
@@ -24,11 +25,15 @@ public class Solutions {
     public static void closeFile() {
         long total = System.currentTimeMillis() - startTime;
         try {
-            writer.write("repair attempt total time: " + total + "\n");
+            writer.write("repair attempt total time " + total + "ms total attempts " + repairAttemptCount + "\n");
             writer.close();
         } catch (IOException e) {
             e.printStackTrace();
         }
+    }
+
+    public static void increaseAttemptCount() {
+        repairAttemptCount += 1;
     }
 
     public static void markSolution(Representation rep, int generation) {
