@@ -289,9 +289,17 @@ CachingRepresentation<JavaEditOperation> {
 
 		if (doingCoverage) {
 			outputDir =  Configuration.outputDir + File.separator
-					+ "coverage/coverage.out/";
+					+ "coverage/coverage.out/:";
 			//+ System.getProperty("path.separator") + ":"
 			//		+ Configuration.outputDir + File.separator + exeName + "/";
+			if (Configuration.editMode == Configuration.EditMode.EXISTING) {
+				String variantName = this.getVariantFolder();
+				if(variantName!=null && !variantName.equalsIgnoreCase("")){
+					outputDir += Configuration.outputDir + File.separator
+							+ variantName + File.separator + ":";
+				}
+				outputDir += Configuration.outputDir + File.separator + exeName + "/";
+			}
 		} else {
 			String variantName = this.getVariantFolder();
 			if(variantName!=null && !variantName.equalsIgnoreCase("")){
