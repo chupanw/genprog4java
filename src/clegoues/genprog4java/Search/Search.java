@@ -250,9 +250,6 @@ public abstract class Search<G extends EditOperation> {
 	    assert Configuration.editMode == Configuration.EditMode.EXISTING : "EXISTING mode only";
 	    assert variant instanceof JavaRepresentation : "Only JavaRepresentation is supported in EXISTING mode";
 		JavaRepresentation thisVariant = (JavaRepresentation) variant;
-		if (thisVariant.getGenome().size() >= 3) {
-			thisVariant.getGenome().clear();
-		}
 	    boolean found = false;
 		JavaSavedEdit next = null;
 	    while(!found) {
